@@ -2,11 +2,12 @@ import json
 import os
 import shutil
 import time
+from abc import ABC, abstractmethod
 
 from constant_sorrow.constants import NOT_RUNNING
 from eth_utils import to_checksum_address, is_checksum_address
 from geth import LoggingMixin
-from geth.accounts import ensure_account_exists, get_accounts, create_new_account
+from geth.accounts import get_accounts, create_new_account
 from geth.chain import (
     get_chain_data_dir,
     initialize_chain,
@@ -15,16 +16,109 @@ from geth.chain import (
 )
 from geth.process import BaseGethProcess
 from twisted.logger import Logger
+from web3 import Web3
 
-from nucypher.config.constants import DEFAULT_CONFIG_ROOT, BASE_DIR, DEPLOY_DIR, USER_LOG_DIR
+from nucypher.config.constants import DEFAULT_CONFIG_ROOT, DEPLOY_DIR, USER_LOG_DIR
 
 NUCYPHER_CHAIN_IDS = {
     'devnet': 112358,
 }
 
 
-class NuCypherGethProcess(LoggingMixin, BaseGethProcess):
+class Web3ClientError(Exception):
+    pass
 
+
+class Web3ClientConnectionFailed(Web3ClientError):
+    pass
+
+
+class Web3ClientUnexpectedVersionString(Web3ClientError):
+    pass
+
+
+class Web3Client(object):
+
+    def __new__(self, w3: Web3, *args):
+        #
+        # *Client version format*
+        # Geth Example: "'Geth/v1.4.11-stable-fed692f6/darwin/go1.7'"
+        # Parity Example: "Parity//v1.5.0-unstable-9db3f38-20170103/x86_64-linux-gnu/rustc1.14.0"
+        # Ganache Example: "EthereumJS TestRPC/v2.1.5/ethereum-js"
+        #
+        client_data = w3.clientVersion.split('/')
+        node_technology = client_data[0]
+
+        GETH = 'Geth'
+        PARITY = 'Parity'
+        GANACHE = 'EthereumJS TestRPC'
+
+        try:
+            gclass = {
+                GETH: GethClient,
+                PARITY: ParityClient,
+                GANACHE: GanacheClient,
+            }[node_technology]
+            return gclass(w3, *client_data)
+
+        except KeyError:
+            raise NotImplementedError(node_technology)
+
+
+class Web3ClientBase(object):
+
+    def __init__(self, w3, node_technology, version, backend, **kwargs):
+        self.web3_instance = w3
+        self.node_technology = node_technology
+        self.node_version = version
+        self.backend = backend
+
+    @property
+    @abstractmethod
+    def peers(self):
+        raise NotImplementedError
+
+    @property
+    def syncing(self):
+        return self.web3_instance.eth.syncing
+
+    @abstractmethod
+    def unlock_account(self, address, password):
+        raise NotImplementedError
+
+    def is_connected(self):
+        return self.web3_instance.isConnected()
+
+
+class GethClient(Web3ClientBase):
+
+    @property
+    def peers(self):
+        return self.web3_instance.geth.admin.peers()
+
+    def unlock_account(self, address, password):
+        return self.web3_instance.geth.personal.unlockAccount(address, password)
+
+
+class ParityClient(Web3ClientBase):
+
+    def peers(self) -> str:
+        return self.web3_instance.manager.request_blocking("parity_netPeers", [])
+
+    def unlock_account(self, address, password):
+        return self.web3_instance.parity.unlockAccount.unlockAccount(address, password)
+
+
+class GanacheClient(Web3ClientBase):
+
+    def peers(self):
+        return []
+
+    def unlock_account(self, address, password):
+        return True
+
+
+class NuCypherGethProcess(LoggingMixin, BaseGethProcess):
     IPC_PROTOCOL = 'http'
     IPC_FILENAME = 'geth.ipc'
     VERBOSITY = 5
