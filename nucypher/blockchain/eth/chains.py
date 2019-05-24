@@ -138,7 +138,7 @@ class Blockchain:
 
             if poa is True:
                 log.debug('Injecting POA middleware at layer 0')
-                interface.w3.middleware_onion.inject(geth_poa_middleware, layer=0)
+                interface.middleware_onion.inject(geth_poa_middleware, layer=0)
 
             cls._instance = cls(interface=interface, provider_process=provider_process)
 
