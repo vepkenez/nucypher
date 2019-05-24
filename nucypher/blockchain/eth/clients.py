@@ -108,7 +108,6 @@ class Web3Client(object):
     def getBalance(self, address):
         return self.w3.getBalance(address)
 
-
     @property
     def chainId(self):
         return self.w3.net.chainId
@@ -171,6 +170,7 @@ class GethClient(Web3Client):
 
 class ParityClient(Web3Client):
 
+    @property
     def peers(self) -> list:
         return self.w3.manager.request_blocking("parity_netPeers", [])
 

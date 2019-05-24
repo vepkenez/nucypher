@@ -201,26 +201,35 @@ class BlockchainInterface(object):
 
     def __getattr__(self, name):
         """
-        returns in order of preference:
 
-            this class's matching attribute,
-            its client's matching attribute
-            its client's w3 instance's attribute
+        MAGIC.
 
-            so interface.getBalance(address) would call:
-                interface.client.w3.getBalance(address)
+        allows the interface class to defer to methods of its client
+        or its client.w3
 
-            but allows overrides at interface and client levels
-
+        for example:
+            methods/properties of w3 can be called through eg. interface.toWei()
+            if a particular eth provider needs a different method,
+            override that method for that provider's client
         """
 
+        # does BlockchainInterface have this attr/method?
         if name not in self.__dict__:
-            if self.client:
+
+            # do we have a client?
+            if self.client is not None:
+
+                # does the client have this property/method?
+                # most likely it is because of an implementation difference
+                # between parity/geth/etc.
                 if hasattr(self.client, name):
                     return getattr(self.client, name)
+
+                # ok, does w3 have it?
                 if hasattr(self.client.w3, name):
                     return getattr(self.client.w3, name)
 
+        # return the default getattr behavior (could be an AttributeError)
         return object.__getattribute__(self, name)
 
     @property
