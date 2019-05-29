@@ -10,6 +10,7 @@ class MockGethProvider:
 
 
 class MockParityProvider:
+
     clientVersion = 'Parity//v1.5.0-unstable-9db3f38-20170103/x86_64-linux-gnu/rustc1.14.0'
 
 
@@ -62,6 +63,8 @@ def test_geth_web3_client():
     )
     assert isinstance(interface.client, GethClient)
     assert interface.backend == 'darwin'
+    assert interface.node_version == 'v1.4.11-stable-fed692f6'
+    assert interface.is_local is False
 
 
 def test_parity_web3_client():
@@ -70,6 +73,7 @@ def test_parity_web3_client():
     )
     assert isinstance(interface.client, ParityClient)
     assert interface.backend == 'x86_64-linux-gnu'
+    assert interface.node_version == 'v1.5.0-unstable-9db3f38-20170103'
 
 
 def test_ganache_web3_client():
@@ -77,5 +81,5 @@ def test_ganache_web3_client():
         provider_uri='http:///ganache:8445'
     )
     assert isinstance(interface.client, GanacheClient)
-    assert interface.backend is None
+    assert interface.node_version == 'v2.1.5'
     assert interface.is_local
