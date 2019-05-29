@@ -67,7 +67,7 @@ class Web3Client(object):
             }[node_technology]
         except KeyError:
             raise NotImplementedError(node_technology)
-
+        breakpoint()
         return subcls(w3, *client_data)
 
     class ConnectionNotEstablished(RuntimeError):
@@ -76,7 +76,7 @@ class Web3Client(object):
     class SyncTimeout(RuntimeError):
         pass
 
-    def __init__(self, w3, node_technology, version, backend, **kwargs):
+    def __init__(self, w3, node_technology, version, backend, *args, **kwargs):
         self.w3 = w3
         self.node_technology = node_technology
         self.node_version = version
@@ -179,6 +179,10 @@ class ParityClient(Web3Client):
 
 
 class GanacheClient(Web3Client):
+
+    def __init__(self, w3, node_technology, version, backend, *args):
+        breakpoint()
+        super().__init__(self, w3, node_technology, version, backend)
 
     is_local = True
 
