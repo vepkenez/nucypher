@@ -11,7 +11,7 @@ class MockGethProvider:
 
 class MockParityProvider:
 
-    clientVersion = 'Parity//v1.5.0-unstable-9db3f38-20170103/x86_64-linux-gnu/rustc1.14.0'
+    clientVersion = 'Parity-Ethereum/v2.5.1-beta-e0141f8-20190510/x86_64-linux-gnu/rustc1.34.1'
 
 
 class MockGanacheProvider:
