@@ -67,7 +67,6 @@ class Web3Client(object):
             }[node_technology]
         except KeyError:
             raise NotImplementedError(node_technology)
-        breakpoint()
         return subcls(w3, *client_data)
 
     class ConnectionNotEstablished(RuntimeError):
@@ -170,6 +169,10 @@ class GethClient(Web3Client):
 
 class ParityClient(Web3Client):
 
+    def __init__(self, w3, node_technology, blank, version, backend, *args):
+        super().__init__(w3, node_technology, version, backend)
+
+
     @property
     def peers(self) -> list:
         return self.w3.manager.request_blocking("parity_netPeers", [])
@@ -181,7 +184,6 @@ class ParityClient(Web3Client):
 class GanacheClient(Web3Client):
 
     def __init__(self, w3, node_technology, version, backend, *args):
-        breakpoint()
         super().__init__(self, w3, node_technology, version, backend)
 
     is_local = True
