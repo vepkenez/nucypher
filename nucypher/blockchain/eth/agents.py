@@ -28,13 +28,21 @@ from nucypher.blockchain.eth.decorators import validate_checksum_address
 from nucypher.blockchain.eth.registry import AllocationRegistry
 
 
-class Singleton(type):
-    _instances = {}
+class Agency(type):
+    __agents = dict()
 
     def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
+        if cls not in cls.__agents:
+            cls.__agents[cls] = super().__call__(*args, **kwargs)
+        return cls.__agents[cls]
+
+    @classmethod
+    def clear(mcs):
+        mcs.__agents = dict()
+
+    @property
+    def agents(cls):
+        return cls.__agents
 
 
 class EthereumContractAgent:
@@ -100,7 +108,7 @@ class EthereumContractAgent:
         return self.registry_contract_name
 
 
-class NucypherTokenAgent(EthereumContractAgent, metaclass=Singleton):
+class NucypherTokenAgent(EthereumContractAgent, metaclass=Agency):
 
     registry_contract_name = "NuCypherToken"
 
@@ -123,7 +131,7 @@ class NucypherTokenAgent(EthereumContractAgent, metaclass=Singleton):
         return txhash
 
 
-class MinerAgent(EthereumContractAgent, metaclass=Singleton):
+class MinerAgent(EthereumContractAgent, metaclass=Agency):
 
     registry_contract_name = "MinersEscrow"
     _proxy_name = "Dispatcher"
@@ -279,7 +287,7 @@ class MinerAgent(EthereumContractAgent, metaclass=Singleton):
         raise self.NotEnoughMiners('Selection failed after {} attempts'.format(attempts))
 
 
-class PolicyAgent(EthereumContractAgent, metaclass=Singleton):
+class PolicyAgent(EthereumContractAgent, metaclass=Agency):
 
     registry_contract_name = "PolicyManager"
     _proxy_name = "Dispatcher"
@@ -474,7 +482,7 @@ class UserEscrowAgent(EthereumContractAgent):
         return txhash
 
 
-class MiningAdjudicatorAgent(EthereumContractAgent, metaclass=Singleton):
+class MiningAdjudicatorAgent(EthereumContractAgent, metaclass=Agency):
     """TODO Issue #931"""
 
     registry_contract_name = "MiningAdjudicator"

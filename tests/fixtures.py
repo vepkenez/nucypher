@@ -31,7 +31,7 @@ from umbral.keys import UmbralPrivateKey
 from umbral.signing import Signer
 
 from nucypher.blockchain.economics import TokenEconomics, SlashingEconomics
-from nucypher.blockchain.eth.agents import NucypherTokenAgent, Singleton
+from nucypher.blockchain.eth.agents import NucypherTokenAgent, Agency
 from nucypher.blockchain.eth.clients import NuCypherGethDevProcess
 from nucypher.blockchain.eth.deployers import (NucypherTokenDeployer,
                                                MinerEscrowDeployer,
@@ -408,7 +408,12 @@ def three_agents(testerchain):
     adjudicator_deployer.deploy(secret_hash=os.urandom(DispatcherDeployer.DISPATCHER_SECRET_LENGTH))
 
     yield token_agent, miner_agent, policy_agent
-    Singleton._instances = {}
+
+
+@pytest.fixture(scope="module", autouse=True)
+def clear_out_agency():
+    yield
+    Agency.clear()
 
 
 @pytest.fixture(scope="module")
