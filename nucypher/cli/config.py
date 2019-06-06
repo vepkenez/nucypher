@@ -123,7 +123,14 @@ class NucypherClickConfig:
         except CryptoError:
             raise character_configuration.keyring.AuthenticationFailed
 
-        # Ethereum Client  # TODO : Integrate with Powers API
+        #
+        # Ethereum Client Keyring  # TODO : Integrate with Powers API?
+        #
+
+        # Need a way to know if the node is remote (like Infura), and not local development
+        if character_configuration.blockchain.interface.is_remote:
+            unlock_wallet = False
+
         if not character_configuration.federated_only and unlock_wallet:
             self.emit(message='Decrypting Ethereum Node Keyring...', color='yellow')
             character_configuration.blockchain.interface.unlock_account(address=character_configuration.checksum_address,
