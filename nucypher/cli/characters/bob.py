@@ -123,7 +123,7 @@ def bob(click_config,
             return actions.handle_missing_configuration_file(character_config_class=BobConfiguration,
                                                              config_file=config_file)
 
-    BOB = actions.make_cli_character(config=bob_config,
+    BOB = actions.make_cli_character(character_config=bob_config,
                                      click_config=click_config,
                                      dev=dev,
                                      teacher_uri=teacher_uri,

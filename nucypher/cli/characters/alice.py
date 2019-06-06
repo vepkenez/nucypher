@@ -213,7 +213,8 @@ def alice(click_config,
 
         # Validate
         if not label:
-            raise click.BadOptionUsage(option_name='label', message="--label is required for deriving a policy encrypting key.")
+            raise click.BadOptionUsage(option_name='label',
+                                       message="--label is required for deriving a policy encrypting key.")
 
         # Request
         return ALICE.controller.derive_policy_encrypting_key(label=label)
