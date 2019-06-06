@@ -60,6 +60,8 @@ from nucypher.utilities.sandbox.constants import (
 @click.option('--rest-port', help="The host port to run Ursula network services on", type=NETWORK_PORT)
 @click.option('--db-filepath', help="The database filepath to connect to", type=click.STRING)
 @click.option('--checksum-address', help="Run with a specified account", type=EIP55_CHECKSUM_ADDRESS)
+@click.option('--withdraw-address', help="Send reward collection to an alternate address", type=EIP55_CHECKSUM_ADDRESS)
+@click.option('--federated-only', '-F', help="Connect only to federated nodes", is_flag=True, default=None)
 @click.option('--config-root', help="Custom configuration directory", type=click.Path())
 @click.option('--config-file', help="Path to configuration file", type=EXISTING_READABLE_FILE)
 @click.option('--poa', help="Inject POA middleware", is_flag=True, default=None)
@@ -69,6 +71,11 @@ from nucypher.utilities.sandbox.constants import (
 @click.option('--recompile-solidity', help="Compile solidity from source when making a web3 connection", is_flag=True)
 @click.option('--no-registry', help="Skip importing the default contract registry", is_flag=True)
 @click.option('--registry-filepath', help="Custom contract registry filepath", type=EXISTING_READABLE_FILE)
+@click.option('--value', help="Token value of stake", type=click.INT)
+@click.option('--duration', help="Period duration of stake", type=click.INT)
+@click.option('--index', help="A specific stake index to resume", type=click.INT)
+@click.option('--list', '-l', 'list_', help="List all blockchain stakes", is_flag=True)
+@click.option('--divide', '-d', help="Divide an existing stake into sub-stakes.", is_flag=True)
 @nucypher_click_config
 def ursula(click_config,
            action,
