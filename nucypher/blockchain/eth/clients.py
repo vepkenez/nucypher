@@ -86,6 +86,10 @@ class Web3Client(object):
         self.log = Logger(self.__class__.__name__)
 
     @classmethod
+    def _get_variant(cls, w3):
+        return cls
+
+    @classmethod
     def from_w3(cls, w3: Web3) -> 'Web3Client':
         """
 
@@ -129,7 +133,7 @@ class Web3Client(object):
             'platform': client_data[2] if len(client_data) == 4 else None  # Plaftorm is optional
         }
 
-        instance = ClientSubclass(w3, **client_kwargs)
+        instance = ClientSubclass._get_variant(w3)(w3, **client_kwargs)
         return instance
 
     class ConnectionNotEstablished(RuntimeError):
@@ -220,6 +224,12 @@ class Web3Client(object):
 
 class GethClient(Web3Client):
 
+    @classmethod
+    def _get_variant(cls, w3):
+        if 'infura' in w3.provider.endpoint_uri:
+            return InfuraClient
+        return cls
+
     @property
     def is_local(self):
         return int(self.w3.net.version) not in PUBLIC_CHAINS
@@ -229,7 +239,8 @@ class GethClient(Web3Client):
         return self.w3.geth.admin.peers()
 
     def unlock_account(self, address, password):
-        return self.w3.geth.personal.unlockAccount(address, password)
+        if not self.is_local:
+            return self.w3.geth.personal.unlockAccount(address, password)
 
 
 class ParityClient(Web3Client):
@@ -255,6 +266,16 @@ class GanacheClient(Web3Client):
     def sync(self, *args, **kwargs):
         return True
 
+
+class InfuraClient(Web3Client):
+
+    is_local = False
+
+    def unlock_account(self, address, password):
+        return True
+
+    def sync(self, *args, **kwargs):
+        return True
 
 class EthereumTesterClient(Web3Client):
 

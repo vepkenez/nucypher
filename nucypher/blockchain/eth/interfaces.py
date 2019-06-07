@@ -269,8 +269,7 @@ class BlockchainInterface:
 
     def _attach_provider(self,
                          provider: Web3Providers = None,
-                         provider_uri: str = None,
-                         remote: bool = False) -> None:
+                         provider_uri: str = None) -> None:
         """
         https://web3py.readthedocs.io/en/latest/providers.html#providers
         """
@@ -307,9 +306,6 @@ class BlockchainInterface:
                 self.__provider = providers[scheme]()
             except KeyError:
                 raise ValueError("{} is an invalid or unsupported blockchain provider URI".format(provider_uri))
-            else:
-                # Mark the provider as remote if needed
-                self.is_remote = remote or scheme == 'infura'
 
     def _get_IPC_provider(self):
         uri_breakdown = urlparse(self.provider_uri)
