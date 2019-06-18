@@ -29,7 +29,6 @@ from nucypher.characters.banners import MOE_BANNER, FELIX_BANNER, NU_BANNER
 from nucypher.characters.base import Character
 from nucypher.config.constants import(
     TEMPLATES_DIR,
-    APPS_S3_PATH,
     CORS_ORIGINS,
     RECAPTCHA_SERVER_SECRET,
     FELIX_REGISTER_API_KEY,
@@ -293,7 +292,7 @@ class Felix(Character, NucypherTokenActor):
 
         @rest_app.route("/", methods=['GET'])
         def home():
-            rendering = render_template(self.TEMPLATE_NAME, APPS_S3_PATH=APPS_S3_PATH)
+            rendering = render_template(self.TEMPLATE_NAME)
             return rendering
 
         @rest_app.route("/register", methods=['POST'])
