@@ -31,10 +31,11 @@ from constant_sorrow.constants import (
     NOT_STAKING,
     NO_STAKES,
     STRANGER_STAKER,
-    NO_STAKING_DEVICE
+    NO_STAKING_DEVICE,
+    STRANGER_WORKER,
+    WORKER_NOT_RUNNING
 )
 from eth_tester.exceptions import TransactionFailed
-from twisted.internet import task, reactor
 from twisted.logger import Logger
 
 from nucypher.blockchain.economics import TokenEconomics
@@ -56,7 +57,7 @@ from nucypher.blockchain.eth.deployers import (
     ContractDeployer)
 from nucypher.blockchain.eth.interfaces import BlockchainDeployerInterface
 from nucypher.blockchain.eth.registry import AllocationRegistry
-from nucypher.blockchain.eth.token import NU, Stake
+from nucypher.blockchain.eth.token import NU, Stake, StakeTracker
 from nucypher.blockchain.eth.utils import datetime_to_period, calculate_period_duration
 from nucypher.config.base import BaseConfiguration
 from nucypher.config.constants import DEFAULT_CONFIG_ROOT
@@ -349,147 +350,28 @@ class Deployer(NucypherTokenActor):
 
 class Staker(NucypherTokenActor):
     """
-    Ursula baseclass for blockchain operations, practically carrying a pickaxe.
+    Baseclass for staking-related operations on the blockchain.
     """
-
-    __current_period_sample_rate = 60*60  # seconds
 
     class StakerError(NucypherTokenActor.ActorError):
         pass
 
     def __init__(self,
                  is_me: bool,
-                 start_staking_loop: bool = True,
                  economics: TokenEconomics = None,
                  *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
 
+        super().__init__(*args, **kwargs)
         self.log = Logger("staker")
+        self.stake_tracker = StakeTracker(checksum_addresses=[self.checksum_address])
+        self.staking_agent = StakingEscrowAgent()
+        self.economics = economics or TokenEconomics()
         self.is_me = is_me
 
-        if not economics:
-            economics = TokenEconomics()
-        self.economics = economics
-
-        #
-        # Blockchain
-        #
-
-        if is_me:
-            self.token_agent = NucypherTokenAgent(blockchain=self.blockchain)
-
-            # Staking Loop
-            self.__current_period = None
-            self._abort_on_staking_error = True
-            self._staking_task = task.LoopingCall(self.heartbeat)
-
-        else:
-            self.token_agent = STRANGER_STAKER
-
-        self.staking_agent = StakingEscrowAgent(blockchain=self.blockchain)
-
-        #
-        # Stakes
-        #
-
-        self.__stakes = UNKNOWN_STAKES
-        self.__start_time = NOT_STAKING
-        self.__uptime_period = NOT_STAKING
-        self.__terminal_period = UNKNOWN_STAKES
-
-        self.__read_stakes()  # "load-in":  Read on-chain stakes
-
-        # Start the callbacks if there are active stakes
-        if (self.stakes is not NO_STAKES) and start_staking_loop:
-            self.stake()
-
-    #
-    # Staking
-    #
-
-    @only_me
-    def stake(self, confirm_now: bool = True) -> None:
-        """
-        High-level staking looping call initialization, this function aims
-        to be safely called at any time - For example, it is okay to call
-        this function multiple times within the same period.
-        """
-        # Get the last stake end period of all stakes
-        terminal_period = max(stake.end_period for stake in self.stakes)
-
-        if confirm_now:
-            self.confirm_activity()
-
-        # record start time and periods
-        self.__start_time = maya.now()
-        self.__uptime_period = self.staking_agent.get_current_period()
-        self.__terminal_period = terminal_period
-        self.__current_period = self.__uptime_period
-        self.start_staking_loop()
-
     @property
-    def last_active_period(self) -> int:
-        period = self.staking_agent.get_last_active_period(address=self.checksum_address)
-        return period
-
-    @only_me
-    def _confirm_period(self):
-
-        onchain_period = self.staking_agent.get_current_period()  # < -- Read from contract
-        self.log.info("Checking for new period. Current period is {}".format(self.__current_period))
-
-        # Check if the period has changed on-chain
-        if self.__current_period != onchain_period:
-
-            # Let's see how much time has passed
-            # TODO: Follow-up actions for downtime
-            missed_periods = onchain_period - self.last_active_period
-            if missed_periods:
-                self.log.warn(f"MISSED CONFIRMATION - {missed_periods} missed staking confirmations detected!")
-                self.__read_stakes()  # Invalidate the stake cache
-
-            # Check for stake expiration and exit
-            stake_expired = self.__current_period >= self.__terminal_period
-            if stake_expired:
-                self.log.info('STOPPED STAKING - Final stake ended.')
-                return True
-
-            # Write to Blockchain
-            self.confirm_activity()
-
-            # Update local period cache
-            self.__current_period = onchain_period
-            self.log.info("Confirmed activity for period {}".format(self.__current_period))
-
-    def heartbeat(self):
-        """Used with LoopingCall"""
-        try:
-            self._confirm_period()
-        except Exception:
-            raise
-
-    def _crash_gracefully(self, failure=None):
-        """
-        A facility for crashing more gracefully in the event that an exception is unhandled in a different thread.
-        """
-        self._crashed = failure
-        failure.raiseException()
-
-    def handle_staking_errors(self, *args, **kwargs):
-        failure = args[0]
-        if self._abort_on_staking_error:
-            self.log.critical("Unhandled error during node staking.  Attempting graceful crash.")
-            reactor.callFromThread(self._crash_gracefully, failure=failure)
-        else:
-            self.log.warn("Unhandled error during node learning: {}".format(failure.getTraceback()))
-
-    @only_me
-    def start_staking_loop(self, now=True) -> None:
-        if self._staking_task.running:
-            return
-        d = self._staking_task.start(interval=self.__current_period_sample_rate, now=now)
-        d.addErrback(self.handle_staking_errors)
-        self.log.info(f"STARTED STAKING - Scheduled end period is currently {self.__terminal_period}")
+    def stakes(self) -> List[Stake]:
+        stakes = self.stake_tracker.stakes(checksum_address=self.checksum_address)
+        return stakes
 
     @property
     def is_staking(self) -> bool:
@@ -507,7 +389,6 @@ class Staker(NucypherTokenActor):
         """
         The total number of staked tokens, either locked or unlocked in the current period.
         """
-
         if self.stakes:
             return NU(sum(int(stake.value) for stake in self.stakes), 'NuNit')
         else:
@@ -545,8 +426,8 @@ class Staker(NucypherTokenActor):
         modified_stake, new_stake = current_stake.divide(target_value=target_value,
                                                          additional_periods=additional_periods)
 
-        # Update staking cache
-        self.__read_stakes()
+        # Update staking cache element
+        self.stake_tracker.refresh(checksum_addresses=[self.checksum_address])
 
         return modified_stake, new_stake
 
@@ -559,93 +440,32 @@ class Staker(NucypherTokenActor):
 
         """Create a new stake."""
 
-        #
         # Duration
-        #
-
         if lock_periods and expiration:
             raise ValueError("Pass the number of lock periods or an expiration MayaDT; not both.")
         if expiration:
             lock_periods = calculate_period_duration(future_time=expiration)
 
-        #
         # Value
-        #
-
         if entire_balance and amount:
             raise ValueError("Specify an amount or entire balance, not both")
         if entire_balance:
             amount = self.token_balance
         if not self.token_balance >= amount:
-            raise self.StakerError(f"Insufficient token balance ({self.token_agent}) for new stake initialization of {amount}")
+            raise self.StakerError(f"Insufficient token balance ({self.token_agent}) "
+                                   f"for new stake initialization of {amount}")
 
         # Ensure the new stake will not exceed the staking limit
         if (self.current_stake + amount) > self.economics.maximum_allowed_locked:
-            raise Stake.StakingError(f"Cannot divide stake - Maximum stake value exceeded with a target value of {amount}.")
-
-        #
-        # Stake
-        #
+            raise Stake.StakingError(f"Cannot divide stake - "
+                                     f"Maximum stake value exceeded with a target value of {amount}.")
 
         # Write to blockchain
         new_stake = Stake.initialize_stake(staker=self, amount=amount, lock_periods=lock_periods)
-        self.__read_stakes()  # Update local staking cache
+
+        # Update stake tracker cache element
+        self.stake_tracker.refresh(checksum_addresses=[self.checksum_address])
         return new_stake
-
-    #
-    # Staking Cache
-    #
-
-    def __read_stakes(self) -> None:
-        """Rewrite the local staking cache by reading on-chain stakes"""
-
-        existing_records = len(self.__stakes)
-
-        # Candidate replacement cache values
-        onchain_stakes, terminal_period = list(), 0
-
-        # Read from blockchain
-        stakes_reader = self.staking_agent.get_all_stakes(staker_address=self.checksum_address)
-
-        for onchain_index, stake_info in enumerate(stakes_reader):
-
-            if not stake_info:
-                # This stake index is empty on-chain
-                onchain_stake = EMPTY_STAKING_SLOT
-
-            else:
-                # On-chain stake detected
-                onchain_stake = Stake.from_stake_info(staker=self,
-                                                      stake_info=stake_info,
-                                                      index=onchain_index)
-
-                # Search for the terminal period
-                if onchain_stake.end_period > terminal_period:
-                    terminal_period = onchain_stake.end_period
-
-            # Store the replacement stake
-            onchain_stakes.append(onchain_stake)
-
-        # Commit the new stake and terminal values to the cache
-        if not onchain_stakes:
-            self.__stakes = NO_STAKES.bool_value(False)
-        else:
-            self.__terminal_period = terminal_period
-            self.__stakes = onchain_stakes
-
-        # Record most recent cache update
-        self.__updated = maya.now()
-        new_records = existing_records - len(self.__stakes)
-        self.log.debug(f"Updated local staking cache ({new_records} new records).")
-
-    def refresh_staking_cache(self) -> None:
-        """Public staking cache invalidation method"""
-        return self.__read_stakes()
-
-    @property
-    def stakes(self) -> List[Stake]:
-        """Return all cached stake instances from the blockchain."""
-        return self.__stakes
 
     #
     # Reward and Collection
@@ -653,26 +473,21 @@ class Staker(NucypherTokenActor):
 
     @only_me
     def set_worker(self, worker_address: str) -> str:
-        txhash = self.staking_agent.set_worker(node_address=self.checksum_address, worker_address=worker_address)
-        self._transaction_cache.append((datetime.utcnow(), txhash))
-        return txhash
-
-    @only_me
-    def confirm_activity(self) -> str:
-        """Staker rewarded for every confirmed period"""
-        txhash = self.staking_agent.confirm_activity(node_address=self.checksum_address)
+        # TODO: Set a Worker for this staker, not just in StakingEscrow
+        txhash = self.staking_agent.set_worker(staker_address=self.checksum_address,
+                                               worker_address=worker_address)
         self._transaction_cache.append((datetime.utcnow(), txhash))
         return txhash
 
     @only_me
     def mint(self) -> Tuple[str, str]:
         """Computes and transfers tokens to the staker's account"""
-        mint_txhash = self.staking_agent.mint(node_address=self.checksum_address)
+        mint_txhash = self.staking_agent.mint(staker_address=self.checksum_address)
         self._transaction_cache.append((datetime.utcnow(), mint_txhash))
         return mint_txhash
 
     def calculate_reward(self) -> int:
-        staking_reward = self.staking_agent.calculate_staking_reward(checksum_address=self.checksum_address)
+        staking_reward = self.staking_agent.calculate_staking_reward(staker_address=self.checksum_address)
         return staking_reward
 
     @only_me
@@ -689,16 +504,91 @@ class Staker(NucypherTokenActor):
     @only_me
     def collect_staking_reward(self) -> str:
         """Withdraw tokens rewarded for staking."""
-        collection_txhash = self.staking_agent.collect_staking_reward(checksum_address=self.checksum_address)
+        collection_txhash = self.staking_agent.collect_staking_reward(staker_address=self.checksum_address)
         self._transaction_cache.append((datetime.utcnow(), collection_txhash))
         return collection_txhash
+
+    @only_me
+    def withdraw(self, amount: NU) -> str:
+        """Withdraw tokens (assuming they're unlocked)"""
+        collection_txhash = self.staking_agent.withdraw(staker_address=self.checksum_address,
+                                                        amount=int(amount))
+        self._transaction_cache.append((datetime.utcnow(), collection_txhash))
+        return collection_txhash
+
+
+class Worker(NucypherTokenActor):
+    """
+    Ursula baseclass for blockchain operations, practically carrying a pickaxe.
+    """
+
+    class WorkerError(NucypherTokenActor.ActorError):
+        pass
+
+    class DetachedWorker(WorkerError):
+        """Raised when the worker address is not assigned an on-chain stake in the StakingEscrow contract."""
+
+    def __init__(self,
+                 is_me: bool,
+                 stake_tracker: StakeTracker = None,
+                 worker_address: str = None,
+                 start_working_loop: bool = True,
+                 *args, **kwargs) -> None:
+
+        super().__init__(*args, **kwargs)
+
+        self.log = Logger("worker")
+
+        self.__worker_address = worker_address
+        self.is_me = is_me
+
+        # Agency
+        self.token_agent = NucypherTokenAgent(blockchain=self.blockchain)
+        self.staking_agent = StakingEscrowAgent(blockchain=self.blockchain)
+
+        # Stakes
+        self.__start_time = WORKER_NOT_RUNNING
+        self.__uptime_period = WORKER_NOT_RUNNING
+
+        # Workers cannot be started without being assigned a stake first.
+        if is_me:
+            self.stake_tracker = stake_tracker or StakeTracker(checksum_addresses=[self.checksum_address])
+
+            if not self.stake_tracker.stakes(checksum_address=self.checksum_address):
+                raise self.DetachedWorker
+            else:
+                self.stake_tracker.add_action(self._confirm_period)
+                if start_working_loop:
+                    self.stake_tracker.start()
+
+    @property
+    def last_active_period(self) -> int:
+        period = self.staking_agent.get_last_active_period(address=self.checksum_address)
+        return period
+
+    @only_me
+    def confirm_activity(self) -> str:
+        """For each period that the worker confirms activity, the staker is rewarded"""
+        txhash = self.staking_agent.confirm_activity(worker_address=self.__worker_address)
+        self._transaction_cache.append((datetime.utcnow(), txhash))
+        return txhash
+
+    @only_me
+    def _confirm_period(self) -> None:
+        # TODO: Follow-up actions for downtime
+        # TODO: Check for stake expiration and exit
+        missed_periods = self.stake_tracker.current_period - self.last_active_period
+        if missed_periods:
+            self.log.warn(f"MISSED CONFIRMATIONS - {missed_periods} missed staking confirmations detected!")
+        self.confirm_activity()  # < --- blockchain WRITE
+        self.log.info("Confirmed activity for period {}".format(self.stake_tracker.current_period))
 
 
 class PolicyAuthor(NucypherTokenActor):
     """Alice base class for blockchain operations, mocking up new policies!"""
 
     def __init__(self, checksum_address: str,
-                 policy_agent = None,
+                 policy_agent: PolicyAgent = None,
                  economics: TokenEconomics = None,
                  *args, **kwargs) -> None:
         """
@@ -707,21 +597,19 @@ class PolicyAuthor(NucypherTokenActor):
                              be created from default values.
 
         """
-        super().__init__(checksum_address=checksum_address,
-                         *args, **kwargs)
+        super().__init__(checksum_address=checksum_address, *args, **kwargs)
 
+        # From defaults
         if not policy_agent:
-            # From defaults
             self.token_agent = NucypherTokenAgent(blockchain=self.blockchain)
             self.staking_agent = StakingEscrowAgent(blockchain=self.blockchain)
             self.policy_agent = PolicyAgent(blockchain=self.blockchain)
+
+        # Injected
         else:
-            # Injected
             self.policy_agent = policy_agent
 
-        if not economics:
-            economics = TokenEconomics()
-        self.economics = economics
+        self.economics = economics or TokenEconomics()
 
     def recruit(self, quantity: int, **options) -> List[str]:
         """
@@ -731,7 +619,6 @@ class PolicyAuthor(NucypherTokenActor):
         :param quantity: Number of ursulas to sample from the blockchain.
 
         """
-
         staker_addresses = self.staking_agent.sample(quantity=quantity, **options)
         return staker_addresses
 
@@ -743,7 +630,6 @@ class PolicyAuthor(NucypherTokenActor):
         :return: Returns a newly authored BlockchainPolicy with n proposed arrangements.
 
         """
-
         from nucypher.blockchain.eth.policies import BlockchainPolicy
         blockchain_policy = BlockchainPolicy(alice=self, *args, **kwargs)
         return blockchain_policy

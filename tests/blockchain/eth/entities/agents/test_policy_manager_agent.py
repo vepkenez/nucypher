@@ -31,15 +31,15 @@ def policy_meta(testerchain, agency, token_economics):
     agent = policy_agent
 
     _policy_id = os.urandom(16)
-    node_addresses = list(staking_agent.sample(quantity=3, duration=1))
+    staker_addresses = list(staking_agent.sample(quantity=3, duration=1))
     _txhash = agent.create_policy(policy_id=_policy_id,
                                   author_address=testerchain.alice_account,
                                   value=token_economics.minimum_allowed_locked,
                                   periods=10,
                                   initial_reward=20,
-                                  node_addresses=node_addresses)
+                                  node_addresses=staker_addresses)
 
-    return MockPolicyMetadata(_policy_id, testerchain.alice_account, node_addresses)
+    return MockPolicyMetadata(_policy_id, testerchain.alice_account, staker_addresses)
 
 
 @pytest.mark.slow()
@@ -50,14 +50,13 @@ def test_create_policy(testerchain, agency, token_economics):
 
     policy_id = os.urandom(16)
     node_addresses = list(staking_agent.sample(quantity=3, duration=1))
-    txhash = agent.create_policy(policy_id=policy_id,
-                                 author_address=testerchain.alice_account,
-                                 value=token_economics.minimum_allowed_locked,
-                                 periods=10,
-                                 initial_reward=20,
-                                 node_addresses=node_addresses)
+    receipt = agent.create_policy(policy_id=policy_id,
+                                  author_address=testerchain.alice_account,
+                                  value=token_economics.minimum_allowed_locked,
+                                  periods=10,
+                                  initial_reward=20,
+                                  node_addresses=node_addresses)
 
-    receipt = testerchain.wait_for_receipt(txhash)
     assert receipt['status'] == 1, "Transaction Rejected"
     assert receipt['logs'][0]['address'] == agent.contract_address
 
@@ -81,11 +80,9 @@ def test_revoke_arrangement(agency, policy_meta):
     token_agent, staking_agent, policy_agent = agency
     agent = policy_agent
 
-    txhash = agent.revoke_arrangement(policy_id=policy_meta.policy_id,
+    receipt = agent.revoke_arrangement(policy_id=policy_meta.policy_id,
                                       author_address=policy_meta.author,
                                       node_address=policy_meta.addresses[0])
-    testerchain = agent.blockchain
-    receipt = testerchain.wait_for_receipt(txhash)
     assert receipt['status'] == 1, "Transaction Rejected"
     assert receipt['logs'][0]['address'] == agent.contract_address
 
@@ -96,9 +93,7 @@ def test_revoke_policy(agency, policy_meta):
     token_agent, staking_agent, policy_agent = agency
     agent = policy_agent
 
-    txhash = agent.revoke_policy(policy_id=policy_meta.policy_id, author_address=policy_meta.author)
-    testerchain = agent.blockchain
-    receipt = testerchain.wait_for_receipt(txhash)
+    receipt = agent.revoke_policy(policy_id=policy_meta.policy_id, author_address=policy_meta.author)
     assert receipt['status'] == 1, "Transaction Rejected"
     assert receipt['logs'][0]['address'] == agent.contract_address
 
@@ -108,12 +103,11 @@ def test_calculate_refund(testerchain, agency, policy_meta):
     token_agent, staking_agent, policy_agent = agency
     agent = policy_agent
 
-    ursula = policy_meta.addresses[-1]
+    staker = policy_meta.addresses[-1]
+    ursula = staking_agent.get_worker_from_staker(staker)
     testerchain.time_travel(hours=9)
-    _txhash = staking_agent.confirm_activity(node_address=ursula)
-    txhash = agent.calculate_refund(policy_id=policy_meta.policy_id, author_address=policy_meta.author)
-    testerchain = agent.blockchain
-    receipt = testerchain.wait_for_receipt(txhash)
+    _receipt = staking_agent.confirm_activity(worker_address=ursula)
+    receipt = agent.calculate_refund(policy_id=policy_meta.policy_id, author_address=policy_meta.author)
     assert receipt['status'] == 1, "Transaction Rejected"
 
 
@@ -123,9 +117,7 @@ def test_collect_refund(testerchain, agency, policy_meta):
     agent = policy_agent
 
     testerchain.time_travel(hours=9)
-    txhash = agent.collect_refund(policy_id=policy_meta.policy_id, author_address=policy_meta.author)
-    testerchain = agent.blockchain
-    receipt = testerchain.wait_for_receipt(txhash)
+    receipt = agent.collect_refund(policy_id=policy_meta.policy_id, author_address=policy_meta.author)
     assert receipt['status'] == 1, "Transaction Rejected"
     assert receipt['logs'][0]['address'] == agent.contract_address
 
@@ -136,16 +128,16 @@ def test_collect_policy_reward(testerchain, agency, policy_meta, token_economics
     token_agent, staking_agent, policy_agent = agency
     agent = policy_agent
 
-    ursula = policy_meta.addresses[-1]
-    old_eth_balance = token_agent.blockchain.interface.w3.eth.getBalance(ursula)
+    staker = policy_meta.addresses[-1]
+    ursula = staking_agent.get_worker_from_staker(staker)
+    old_eth_balance = token_agent.blockchain.interface.w3.eth.getBalance(staker)
 
     for _ in range(token_economics.minimum_locked_periods):
-        _txhash = staking_agent.confirm_activity(node_address=ursula)
+        _receipt = staking_agent.confirm_activity(worker_address=ursula)
         testerchain.time_travel(periods=1)
 
-    txhash = agent.collect_policy_reward(collector_address=ursula, staker_address=ursula)
-    receipt = testerchain.wait_for_receipt(txhash)
+    receipt = agent.collect_policy_reward(collector_address=staker, staker_address=staker)
     assert receipt['status'] == 1, "Transaction Rejected"
     assert receipt['logs'][0]['address'] == agent.contract_address
-    new_eth_balance = token_agent.blockchain.interface.w3.eth.getBalance(ursula)
+    new_eth_balance = token_agent.blockchain.interface.w3.eth.getBalance(staker)
     assert new_eth_balance > old_eth_balance

@@ -1,6 +1,7 @@
 import os
 from collections import namedtuple
 
+import pytest
 from eth_utils.address import to_checksum_address
 from twisted.logger import globalLogPublisher, LogLevel
 
@@ -52,13 +53,21 @@ def test_blockchain_ursula_stamp_verification_tolerance(blockchain_ursulas, capl
     assert unsigned not in lonely_blockchain_learner.known_nodes
 
     # TODO: #1035
-    # minus 3: self, a non-staking ursula, and the unsigned ursula.
-    assert len(lonely_blockchain_learner.known_nodes) == len(blockchain_ursulas) - 3
+    # minus 2: self and the unsigned ursula.
+    assert len(lonely_blockchain_learner.known_nodes) == len(blockchain_ursulas) - 2
     assert blockchain_teacher in lonely_blockchain_learner.known_nodes
 
-    #
-    # Attempt to verify non-staking Ursula
-    #
+
+@pytest.mark.skip("See Issue #1075")  # TODO: Issue #1075
+def test_non_staking_ursula_tolerance(blockchain_ursulas):
+
+    lonely_blockchain_learner, blockchain_teacher, unsigned, *the_others, non_staking_ursula = list(blockchain_ursulas)
+
+    warnings = []
+
+    def warning_trapper(event):
+        if event['log_level'] == LogLevel.warn:
+            warnings.append(event)
 
     lonely_blockchain_learner._current_teacher_node = non_staking_ursula
     globalLogPublisher.addObserver(warning_trapper)

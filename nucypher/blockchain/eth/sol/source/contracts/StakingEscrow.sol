@@ -105,7 +105,7 @@ contract StakingEscrow is Issuer {
 
     mapping (uint16 => uint256) public lockedPerPeriod;
     uint16 public minLockedPeriods;
-    uint16 public minWorkerPeriods;
+    uint16 public minWorkerPeriods; // TODO: What's a good minimum time to allow stakers to change/unset worker? (#1073)
     uint256 public minAllowableLockedTokens;
     uint256 public maxAllowableLockedTokens;
     PolicyManagerInterface public policyManager;
@@ -335,7 +335,7 @@ contract StakingEscrow is Issuer {
     /**
     * @notice Get worker using staker's address
     **/
-    function getWorkerByStaker(address _staker) public view returns (address) {
+    function getWorkerFromStaker(address _staker) public view returns (address) {
         StakerInfo storage info = stakerInfo[_staker];
         // specified address is not a staker
         if (stakerInfo[_staker].subStakes.length == 0) {
@@ -347,7 +347,7 @@ contract StakingEscrow is Issuer {
     /**
     * @notice Get staker using worker's address
     **/
-    function getStakerByWorker(address _worker) public view returns (address) {
+    function getStakerFromWorker(address _worker) public view returns (address) {
         return workerToStaker[_worker];
     }
 
@@ -357,25 +357,28 @@ contract StakingEscrow is Issuer {
     * @param _worker Worker address. Must be a real address, not a contract
     **/
     function setWorker(address _worker) public onlyStaker {
-        require(_worker != address(0), "Worker's address must not be empty");
-
-        uint16 currentPeriod = getCurrentPeriod();
         StakerInfo storage info = stakerInfo[msg.sender];
-
         require(_worker != info.worker, "Specified worker is already set for this staker");
-        require(currentPeriod >= info.workerStartPeriod.add16(minWorkerPeriods),
-            "Not enough time has passed since the previous setting worker");
-        require(workerToStaker[_worker] == address(0), "Specified worker is already in use");
-        require(stakerInfo[_worker].subStakes.length == 0 || _worker == msg.sender,
-            "Specified worker is an another staker");
-
-        // remove relation between the old worker and the staker
-        if (info.worker != address(0)) {
+        uint16 currentPeriod = getCurrentPeriod();
+        if(info.worker != address(0)){ // If this staker had a worker ...
+            // Check that enough time has passed to change it
+            require(currentPeriod >= info.workerStartPeriod.add16(minWorkerPeriods),
+                "Not enough time has passed since the previous setting worker");
+            // Remove the old relation "worker->staker"
             workerToStaker[info.worker] = address(0);
         }
+
+        if (_worker != address(0)){
+            require(workerToStaker[_worker] == address(0), "Specified worker is already in use");
+            require(stakerInfo[_worker].subStakes.length == 0 || _worker == msg.sender,
+                "Specified worker is a staker");
+            // Set new worker->staker relation
+            workerToStaker[_worker] = msg.sender;
+        }
+
+        // Set new worker (or unset if _worker == address(0))
         info.worker = _worker;
         info.workerStartPeriod = currentPeriod;
-        workerToStaker[_worker] = msg.sender;
         emit WorkerSet(msg.sender, _worker, currentPeriod);
     }
 
@@ -639,16 +642,9 @@ contract StakingEscrow is Issuer {
     * @notice Confirm activity for the next period and mine for the previous period
     **/
     function confirmActivity() external {
-        address staker = msg.sender;
-        // sender is staker -> staker is an intermediary contract
-        if (stakerInfo[staker].value > 0) {
-            require(getWorkerByStaker(staker) == tx.origin, "Only worker can confirm activity");
-        } else {
-            // staker is not a contract -> sender is worker
-            staker = getStakerByWorker(msg.sender);
-            require(stakerInfo[staker].value > 0, "Staker must have a stake to confirm activity");
-            require(msg.sender == tx.origin, "Only worker with real address can confirm activity");
-        }
+        address staker = getStakerFromWorker(msg.sender);
+        require(stakerInfo[staker].value > 0, "Staker must have a stake to confirm activity");
+        require(msg.sender == tx.origin, "Only worker with real address can confirm activity");
 
         uint16 lastActivePeriod = getLastActivePeriod(staker);
         mint(staker);

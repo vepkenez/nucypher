@@ -54,9 +54,9 @@ def test_blockchain_alice_finds_ursula_via_rest(blockchain_alice, blockchain_urs
 
     blockchain_alice.remember_node(blockchain_ursulas[0])
     blockchain_alice.learn_from_teacher_node()
-    assert len(blockchain_alice.known_nodes) == len(blockchain_ursulas[:-1])  # TODO: #1035
+    assert len(blockchain_alice.known_nodes) == len(blockchain_ursulas)
 
-    for ursula in blockchain_ursulas[:-1]:  # TODO: #1035
+    for ursula in blockchain_ursulas:
         assert ursula in blockchain_alice.known_nodes
 
 
@@ -134,6 +134,7 @@ def test_treasure_map_is_legit(enacted_federated_policy):
         assert ursula_address in enacted_federated_policy.bob.known_nodes.addresses()
 
 
+@pytest.mark.skip("See Issue #1075")    # TODO: Issue #1075
 def test_vladimir_illegal_interface_key_does_not_propagate(blockchain_ursulas):
     """
     Although Ursulas propagate each other's interface information, as demonstrated above,
@@ -181,6 +182,7 @@ def test_vladimir_illegal_interface_key_does_not_propagate(blockchain_ursulas):
     assert vladimir in other_ursula.suspicious_activities_witnessed['vladimirs']
 
 
+@pytest.mark.skip("See Issue #1075")    # TODO: Issue #1075
 def test_alice_refuses_to_make_arrangement_unless_ursula_is_valid(blockchain_alice,
                                                                   idle_blockchain_policy,
                                                                   blockchain_ursulas):
