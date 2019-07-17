@@ -267,7 +267,7 @@ class GethClient(Web3Client):
 
     @classmethod
     def _get_variant(cls, w3):
-        if 'infura' in w3.provider.endpoint_uri:
+        if 'infura' in getattr(w3.provider, 'endpoint_uri', ''):
             return InfuraClient
         return cls
 
@@ -330,6 +330,7 @@ class InfuraClient(Web3Client):
 
     def sync(self, *args, **kwargs):
         return True
+
 
 class EthereumTesterClient(Web3Client):
 

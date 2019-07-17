@@ -72,13 +72,16 @@ class BlockchainInterfaceTestBase(BlockchainInterface):
         pass
 
 
+class InfuraTestClient(BlockchainInterfaceTestBase):
+
+    def _attach_provider(self, *args, **kwargs) -> None:
+        super()._attach_provider(provider=MockInfuraProvider())
+
+
 class GethClientTestBlockchain(BlockchainInterfaceTestBase):
 
     def _attach_provider(self, *args, **kwargs) -> None:
         super()._attach_provider(provider=MockGethProvider())
-
-    def _get_infura_provider(self):
-        return MockInfuraProvider()
 
     @property
     def is_local(self):
@@ -112,9 +115,9 @@ def test_geth_web3_client():
 
 
 def test_infura_web3_client():
-    interface = GethClientTestBlockchain(
-        provider_uri='infura://1234567890987654321abcdef'
-    )
+    interface = InfuraTestClient(provider_uri='infura://1234567890987654321abcdef')
+    interface.connect(fetch_registry=False, sync_now=False)
+
     assert isinstance(interface.client, InfuraClient)
     assert interface.node_technology == 'Geth'
     assert interface.node_version == 'v1.8.23-omnibus-2ad89aaa'
