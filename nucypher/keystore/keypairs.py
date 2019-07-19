@@ -31,7 +31,7 @@ from nucypher.crypto import api as API
 from nucypher.crypto.api import generate_self_signed_certificate
 from nucypher.crypto.kits import MessageKit
 from nucypher.crypto.signing import SignatureStamp, StrangerStamp
-from nucypher.network.protocols import DeployTLSWithStatics
+from nucypher.network.protocols import DeployTLSWithStatics, HendrixDeployTLS, get_statics
 
 
 class Keypair(object):
@@ -196,10 +196,13 @@ class HostingKeypair(Keypair):
                                                 )
 
     def get_deployer(self, rest_app, port):
-        return DeployTLSWithStatics("start",
+        deployer = HendrixDeployTLS("start",
                                 key=self._privkey,
                                 cert=X509.from_cryptography(self.certificate),
                                 context_factory=ExistingKeyTLSContextFactory,
                                 context_factory_kwargs={"curve_name": self.curve.name,
                                                         "sslmethod": TLSv1_2_METHOD},
                                 options={"wsgi": rest_app, "https_port": port})
+
+        deployer.resources = get_statics()
+        return deployer
