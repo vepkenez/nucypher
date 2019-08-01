@@ -214,6 +214,7 @@ commands:
           command: |
             sudo apt update -y && sudo apt install python3-dev -y
             pipenv sync --dev
+            pipenv install -e . --skip-lock
       - run:
           name: Install Solidity Compiler (Pipenv Entrypoint)
           command: pipenv run install-solc
