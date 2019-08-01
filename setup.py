@@ -71,33 +71,7 @@ class VerifyVersionCommand(install):
 
 with open(os.path.join(BASE_DIR, "requirements.txt")) as f:
     _PIP_FLAGS, *INSTALL_REQUIRES = f.read().split('\n')
-
-with open(os.path.join(BASE_DIR, "dev-requirements.txt")) as f:
-    _DEV_PIP_FLAGS, *DEV_INSTALL_REQUIRES = f.read().split('\n')
-
-
-DEPLOY_REQUIRES = [
-    *DEV_INSTALL_REQUIRES,
-    'bumpversion',
-    'ansible',
-]
-
-DOCS_REQUIRE = [
-    'sphinx',
-    'sphinx-autobuild',
-    'recommonmark',
-    'aafigure',
-    'sphinx_rtd_theme'
-]
-
-BENCHMARKS_REQUIRE = [
-    'pytest-benchmark'
-]
-
-EXTRAS_REQUIRE = {'development': DEV_INSTALL_REQUIRES,
-                  'deployment': DEPLOY_REQUIRES,
-                  'docs': DOCS_REQUIRE,
-                  'benchmark': BENCHMARKS_REQUIRE}
+    
 
 setup(name=ABOUT['__title__'],
       url=ABOUT['__url__'],
@@ -110,9 +84,7 @@ setup(name=ABOUT['__title__'],
       long_description_content_type="text/markdown",
 
       setup_requires=['pytest-runner'],  # required for `setup.py test`
-      tests_require=DEV_INSTALL_REQUIRES,
       install_requires=INSTALL_REQUIRES,
-      extras_require=EXTRAS_REQUIRE,
 
       packages=find_packages(exclude=["tests"]),
       package_data={PACKAGE_NAME: [
