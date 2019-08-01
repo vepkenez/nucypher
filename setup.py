@@ -72,20 +72,12 @@ class VerifyVersionCommand(install):
 with open(os.path.join(BASE_DIR, "requirements.txt")) as f:
     _PIP_FLAGS, *INSTALL_REQUIRES = f.read().split('\n')
 
+with open(os.path.join(BASE_DIR, "dev-requirements.txt")) as f:
+    _DEV_PIP_FLAGS, *DEV_INSTALL_REQUIRES = f.read().split('\n')
 
-TESTS_REQUIRE = [
-    'pytest',
-    'pytest-xdist',
-    'pytest-mypy',
-    'pytest-twisted',
-    'pytest-cov',
-    'mypy',
-    'codecov',
-    'coverage',
-    'moto'
-]
 
 DEPLOY_REQUIRES = [
+    *DEV_INSTALL_REQUIRES,
     'bumpversion',
     'ansible',
 ]
@@ -102,7 +94,7 @@ BENCHMARKS_REQUIRE = [
     'pytest-benchmark'
 ]
 
-EXTRAS_REQUIRE = {'development': TESTS_REQUIRE,
+EXTRAS_REQUIRE = {'development': DEV_INSTALL_REQUIRES,
                   'deployment': DEPLOY_REQUIRES,
                   'docs': DOCS_REQUIRE,
                   'benchmark': BENCHMARKS_REQUIRE}
@@ -118,7 +110,7 @@ setup(name=ABOUT['__title__'],
       long_description_content_type="text/markdown",
 
       setup_requires=['pytest-runner'],  # required for `setup.py test`
-      tests_require=TESTS_REQUIRE,
+      tests_require=DEV_INSTALL_REQUIRES,
       install_requires=INSTALL_REQUIRES,
       extras_require=EXTRAS_REQUIRE,
 
@@ -155,5 +147,4 @@ setup(name=ABOUT['__title__'],
           "Programming Language :: Python :: 3.8",
           "Topic :: Security"
       ],
-      python_requires='>=3'
-      )
+      python_requires='>=3')

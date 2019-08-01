@@ -58,8 +58,6 @@ sphinx = "*"
 recommonmark = "*"
 sphinx_rtd_theme = "*"
 aafigure = "*"
-# CLI
-#nucypher = {editable = true,path = "."}
 
 [scripts]
 install-solc = "scripts/installation/install_solc.sh"
