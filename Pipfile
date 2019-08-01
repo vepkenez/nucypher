@@ -11,18 +11,15 @@ python_version = "3"
 umbral = "==0.1.3a0"
 constant-sorrow = ">=0.1.0a8"
 bytestring-splitter = ">=1.0.0a4"
-hendrix = ">=3.2.3"
-# Third-Party
+# Cryptography
 pyopenssl = "*"
 cryptography = ">=2.3"
 pysha3="*"
-requests = "*"
-sqlalchemy = "*"
+# Utilities
 maya = "*"
-flask = "*"
-flask_sqlalchemy = "*"
-# Third-Party Ethereum
-py-evm = "==0.2.0a42"
+# Ethereum
+py-evm = "*"
+py-geth = "*"
 eth-tester = "*"
 coincurve = "*"
 web3 = "*"
@@ -31,19 +28,24 @@ sentry-sdk = "==0.9.0"
 appdirs = "*"
 click = ">=7.0"
 colorama = "*"
-boto3 = "*"
+# Web
+hendrix = ">=3.2.3"
+flask = "*"
+flask_sqlalchemy = "*"
 flask-limiter = "*"
+requests = "*"
+sqlalchemy = "*"
 
 [dev-packages]
 # Pytest
 pytest = "*"
+pytest-ethereum = "*"
 pytest-xdist = "*"
 pytest-mypy = "*"
 pytest-twisted = "*"
 pytest-cov = "*"
 pytest-mock = "*"
 # Tools
-moto = "*"
 mypy = "*"
 # Coverage
 coverage = "*"
@@ -57,7 +59,7 @@ recommonmark = "*"
 sphinx_rtd_theme = "*"
 aafigure = "*"
 # CLI
-nucypher = {editable = true,path = "."}
+#nucypher = {editable = true,path = "."}
 
 [scripts]
 install-solc = "scripts/installation/install_solc.sh"
