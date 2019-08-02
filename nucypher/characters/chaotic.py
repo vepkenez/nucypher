@@ -142,9 +142,10 @@ class Felix(Character, NucypherTokenActor, NonTLSHost):
 
     # Disbursement
     BATCH_SIZE = 10                 # transactions
-    MULTIPLIER = 0.95               # 5% reduction of previous stake is 0.95, for example
+    MULTIPLIER = 0.9                # 10% reduction of previous stake is 0.9, for example
+                                    # this will result in 90 days of distribution
     MINIMUM_DISBURSEMENT = 1e18     # NuNits
-    ETHER_AIRDROP_AMOUNT = int(2e18)  # Wei
+    ETHER_AIRDROP_AMOUNT = 0        # Wei  Local modification to prevent eth distribution 
 
     # Node Discovery
     LEARNING_TIMEOUT = 30           # seconds
@@ -166,7 +167,7 @@ class Felix(Character, NucypherTokenActor, NonTLSHost):
                  client_password: str = None,
                  crash_on_error: bool = False,
                  economics: TokenEconomics = None,
-                 distribute_ether: bool = True,
+                 distribute_ether: bool = False,
                  *args, **kwargs):
 
         # Character
@@ -204,17 +205,16 @@ class Felix(Character, NucypherTokenActor, NonTLSHost):
         self._distribution_task = LoopingCall(f=self.airdrop_tokens)
         self._distribution_task.clock = self._CLOCK
         self.start_time = NOT_RUNNING
-
+        
         if not economics:
             economics = TokenEconomics()
         self.economics = economics
 
         self.MAXIMUM_DISBURSEMENT = economics.maximum_allowed_locked
-        self.INITIAL_DISBURSEMENT = economics.minimum_allowed_locked
+        self.INITIAL_DISBURSEMENT = economics.minimum_allowed_locked * 3
 
         # Optionally send ether with each token transaction
         self.distribute_ether = distribute_ether
-
         # Banner
         self.log.info(FELIX_BANNER.format(self.checksum_address))
 
@@ -300,13 +300,13 @@ class Felix(Character, NucypherTokenActor, NonTLSHost):
             )
 
             if not new_address:
-                return Response(response="no address", status=400)  # TODO
+                return Response(response="no address was supplied", status=411) 
 
             if not eth_utils.is_checksum_address(new_address):
-                return Response(response="invalid address", status=400)  # TODO
+                return Response(response="an invalid ethereum address was supplied.  please ensure the address is a proper checksum.", status=400)
 
             if new_address in self.reserved_addresses:
-                return Response(response="reserved", status=400)  # TODO
+                return Response(response="sorry, that address is reserved and cannot receive funds.", status=403)  # TODO
 
             try:
                 with ThreadedSession(self.db_engine) as session:
@@ -315,7 +315,7 @@ class Felix(Character, NucypherTokenActor, NonTLSHost):
                     if existing:
                         # Address already exists; Abort
                         self.log.debug(f"{new_address} is already enrolled.")
-                        return Response(response="already enrolled", status=400)
+                        return Response(response="That address is already enrolled.", status=409)
 
                     # Create the record
                     recipient = Recipient(address=new_address, joined=datetime.now())
