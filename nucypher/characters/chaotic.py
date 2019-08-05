@@ -6,6 +6,7 @@ import eth_utils
 import math
 import maya
 import time
+from decimal import Decimal
 from constant_sorrow.constants import NOT_RUNNING, NO_DATABASE_AVAILABLE
 from datetime import datetime, timedelta
 from flask import Flask, render_template, Response, send_from_directory
@@ -142,7 +143,7 @@ class Felix(Character, NucypherTokenActor, NonTLSHost):
 
     # Disbursement
     BATCH_SIZE = 10                 # transactions
-    MULTIPLIER = 0.9                # 10% reduction of previous stake is 0.9, for example
+    MULTIPLIER = Decimal('0.9')     # 10% reduction of previous stake is 0.9, for example
                                     # this will result in 90 days of distribution
     MINIMUM_DISBURSEMENT = 1e18     # NuNits
     ETHER_AIRDROP_AMOUNT = 0        # Wei  Local modification to prevent eth distribution 
