@@ -2,7 +2,8 @@ from nucypher.blockchain.eth.clients import (
     GethClient,
     ParityClient,
     GanacheClient,
-    PUBLIC_CHAINS
+    PUBLIC_CHAINS,
+    UNKNOWN_DEVELOPMENT_CHAIN_ID
 )
 from nucypher.blockchain.eth.interfaces import BlockchainInterface
 
@@ -103,6 +104,7 @@ def test_geth_web3_client():
 
     assert interface.client.is_local is False
     assert interface.client.chain_id == '5'  # Hardcoded above
+    assert interface.client.chain_name == "Goerli"
 
 
 def test_parity_web3_client():
@@ -114,6 +116,7 @@ def test_parity_web3_client():
     assert interface.client.node_version == 'v2.5.1-beta-e0141f8-20190510'
     assert interface.client.platform == 'x86_64-linux-gnu'
     assert interface.client.backend == 'rustc1.34.1'
+    assert interface.client.chain_name == "Goerli"
 
 
 def test_ganache_web3_client():
@@ -126,3 +129,4 @@ def test_ganache_web3_client():
     assert interface.client.platform is None
     assert interface.client.backend == 'ethereum-js'
     assert interface.client.is_local
+    assert interface.client.chain_name == UNKNOWN_DEVELOPMENT_CHAIN_ID

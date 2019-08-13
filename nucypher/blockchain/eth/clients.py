@@ -144,7 +144,7 @@ class Web3Client:
     @property
     def chain_name(self) -> str:
         if not self.is_local:
-            return PUBLIC_CHAINS[int(self.chain_id)]
+            return PUBLIC_CHAINS[self.chain_id]
         name = LOCAL_CHAINS.get(self.chain_id, UNKNOWN_DEVELOPMENT_CHAIN_ID)
         return name
 
@@ -179,8 +179,8 @@ class Web3Client:
         self.w3.middleware_onion.inject(middleware, **kwargs)
 
     @property
-    def chain_id(self) -> str:  # TODO : Make this return an integer?
-        return str(int(self.w3.eth.chainId, 16))
+    def chain_id(self) -> int:
+        self.w3.eth.chainId
 
     @property
     def net_version(self) -> str:  # TODO : Make this return an integer?
