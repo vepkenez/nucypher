@@ -278,11 +278,28 @@ class Felix(Character, NucypherTokenActor, NonTLSHost):
         #
         # REST Routes
         #
+        @rest_app.route("/status", methods=['GET'])
+        def status():
+            with ThreadedSession(self.db_engine) as session:
+                total_recipients = session.query(self.Recipient).count()
+                last_recipient = session.query(self.Recipient).filter(
+                    self.Recipient.last_disbursement_time.isnot(None)
+                ).order_by('last_disbursement_time').first()
+                last_address = last_recipient.address
+                last_transaction_date = last_recipient.last_disbursement_time.isoformat()
 
-        @rest_app.route('/js/<path:path>')
-        def send_js(path):
-            print('got path:', path)
-            return send_from_directory('js', path)
+                unfunded = session.query(self.Recipient).filter(
+                                    self.Recipient.last_disbursement_time.is_(None)
+                                ).count()
+
+                return json.dumps(
+                        {
+                            "total": total_recipients,
+                            "latest": last_address,
+                            "latest_date": last_transaction_date,
+                            "unfunded": unfunded,
+                        }
+                    )
 
         @rest_app.route("/", methods=['GET'])
         def home():
