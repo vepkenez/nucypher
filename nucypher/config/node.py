@@ -443,9 +443,6 @@ class CharacterConfiguration(BaseConfiguration):
                 elif self.checksum_address not in self.provider_process.accounts():
                     raise self.ConfigurationError(f'Unknown Account {self.checksum_address}')
 
-            elif not self.checksum_address:
-                raise self.ConfigurationError(f'No checksum address provided for decentralized configuration.')
-
             checksum_address = self.checksum_address
 
         self.keyring = NucypherKeyring.generate(password=password,

@@ -515,11 +515,14 @@ class NucypherKeyring:
                  host: str = None,
                  curve: EllipticCurve = None,
                  keyring_root: str = None,
+                 use_checksum_identifier: bool = True
                  ) -> 'NucypherKeyring':
         """
         Generates new encrypting, signing, and wallet keys encrypted with the password,
         respectively saving keyfiles on the local filesystem from *default* paths,
         returning the corresponding Keyring instance.
+
+        If use_checksum_identifier is False, use the signing key hex.
         """
 
         failures = cls.validate_password(password)
@@ -543,14 +546,14 @@ class NucypherKeyring:
 
         keyring_args = dict()
 
-        if checksum_address is not FEDERATED_ADDRESS:
+        if checksum_address and checksum_address is not FEDERATED_ADDRESS:
             # Addresses read from some node keyrings (clients) are *not* returned in checksum format.
             checksum_address = to_checksum_address(checksum_address)
 
         if encrypting is True:
-            signing_private_key, signing_public_key = _generate_signing_keys()
+            signing_private_key, signing_public_key = _generate_signing_keys()    # TODO: No such thing as signing public key
 
-            if checksum_address is FEDERATED_ADDRESS:
+            if checksum_address and checksum_address is FEDERATED_ADDRESS:
                 uncompressed_bytes = signing_public_key.to_bytes(is_compressed=False)
                 without_prefix = uncompressed_bytes[1:]
                 verifying_key_as_eth_key = EthKeyAPI.PublicKey(without_prefix)
@@ -561,10 +564,15 @@ class NucypherKeyring:
             # signing_private_key, signing_public_key = ...
             pass
 
-        if not checksum_address:
-            raise ValueError("Checksum address must be provided for non-federated keyring generation")
+        if use_checksum_identifier:
+            if not checksum_address:
+                raise ValueError("Checksum address must be provided for decentralized keyring generation")
+            identifier = checksum_address
+        else:
+            identifier = bytes(signing_public_key).hex()
 
-        __key_filepaths = cls._generate_key_filepaths(account=checksum_address,
+
+        __key_filepaths = cls._generate_key_filepaths(account=identifier,
                                                       private_key_dir=_private_key_dir,
                                                       public_key_dir=_public_key_dir)
         if encrypting is True:
@@ -635,7 +643,7 @@ class NucypherKeyring:
                 delegating_key_path=delegating_key_path,
             )
 
-        if rest is True:
+        if rest is True and use_checksum_identifier:
             if not all((host, curve, checksum_address)):  # TODO: Do we want to allow showing up with an old wallet and generating a new cert?  Probably.
                 raise ValueError("host, checksum_address and curve are required to make a new keyring TLS certificate. Got {}, {}".format(host, curve))
             private_key, cert = _generate_tls_keys(host=host, checksum_address=checksum_address, curve=curve)
@@ -651,7 +659,7 @@ class NucypherKeyring:
             certificate_filepath = _write_tls_certificate(full_filepath=__key_filepaths['tls_certificate'], certificate=cert)
             keyring_args.update(tls_certificate_path=certificate_filepath, tls_key_path=tls_key_path)
 
-        keyring_instance = cls(account=checksum_address, **keyring_args)
+        keyring_instance = cls(account=identifier, **keyring_args)
         return keyring_instance
 
     @staticmethod

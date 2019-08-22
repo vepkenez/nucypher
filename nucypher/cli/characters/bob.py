@@ -86,6 +86,27 @@ def bob(click_config,
     # Eager Actions
     #
 
+    if action == "challenge":
+        # All logic for blockchain goes here.
+        registry = None
+        if registry_filepath:
+            registry = EthereumContractRegistry(registry_filepath=registry_filepath)
+        blockchain = BlockchainInterface(provider_uri=provider_uri, registry=registry, poa=poa)
+        blockchain.connect(sync_now=sync, emitter=emitter)
+        checksum_address = select_client_account(emitter=emitter, blockchain=blockchain)
+
+        download_registry = not federated_only and not click_config.no_registry
+
+        new_bob_config = BobConfiguration.generate(password=get_nucypher_password(confirm=True),
+                                                   config_root=config_root or DEFAULT_CONFIG_ROOT,
+                                                   checksum_address=checksum_address,
+                                                   domains={network} if network else None,
+                                                   federated_only=federated_only,
+                                                   download_registry=download_registry,
+                                                   registry_filepath=registry_filepath,
+                                                   provider_uri=provider_uri)
+
+
     if action == 'init':
         """Create a brand-new persistent Bob"""
 
@@ -95,23 +116,12 @@ def bob(click_config,
         if not config_root:  # Flag
             config_root = click_config.config_file  # Envvar
 
-        if not checksum_address and not federated_only:
-            registry = None
-            if registry_filepath:
-                registry = EthereumContractRegistry(registry_filepath=registry_filepath)
-            blockchain = BlockchainInterface(provider_uri=provider_uri, registry=registry, poa=poa)
-            blockchain.connect(sync_now=sync, emitter=emitter)
-            checksum_address = select_client_account(emitter=emitter, blockchain=blockchain)
 
-        download_registry = not federated_only and not click_config.no_registry
         new_bob_config = BobConfiguration.generate(password=get_nucypher_password(confirm=True),
                                                    config_root=config_root or DEFAULT_CONFIG_ROOT,
-                                                   checksum_address=checksum_address,
                                                    domains={network} if network else None,
                                                    federated_only=federated_only,
-                                                   download_registry=download_registry,
-                                                   registry_filepath=registry_filepath,
-                                                   provider_uri=provider_uri)
+                                                   )
 
         return painting.paint_new_installation_help(emitter, new_configuration=new_bob_config)
 

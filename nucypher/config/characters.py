@@ -192,6 +192,7 @@ class BobConfiguration(CharacterConfiguration):
         return super().write_keyring(password=password,
                                      encrypting=True,
                                      rest=False,
+                                     use_checksum_identifier=False,  # TODO: Deepen this API? - Kieran
                                      **generation_kwargs)
 
 
