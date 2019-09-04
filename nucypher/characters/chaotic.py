@@ -304,10 +304,11 @@ class Felix(Character, NucypherTokenActor):
         @limiter.limit("5 per day")
         def register():
             """Handle new recipient registration via POST request."""
-            try:
-                new_address = request.form['address']
-            except KeyError:
-                return Response(status=400)  # TODO
+
+            new_address = (
+                request.form.get('address') or
+                request.get_json().get('address')
+            )
 
             if not eth_utils.is_checksum_address(new_address):
                 return Response(status=400)  # TODO
