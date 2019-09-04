@@ -310,11 +310,16 @@ class Felix(Character, NucypherTokenActor):
                 request.get_json().get('address')
             )
 
-            if not eth_utils.is_checksum_address(new_address):
-                return Response(status=400)  # TODO
+            if not new_address:
+                return Response(response="no address was supplied", status=411)
+
+            if not eth_utils.is_address(new_address):
+                return Response(response="an invalid ethereum address was supplied.  please ensure the address is a proper checksum.", status=400)
+            else:
+                new_address = eth_utils.to_checksum_address(new_address)
 
             if new_address in self.reserved_addresses:
-                return Response(status=400)  # TODO
+                return Response(response="sorry, that address is reserved and cannot receive funds.", status=403)
 
             try:
                 with ThreadedSession(self.db_engine) as session:
@@ -323,7 +328,7 @@ class Felix(Character, NucypherTokenActor):
                     if existing:
                         # Address already exists; Abort
                         self.log.debug(f"{new_address} is already enrolled.")
-                        return Response(status=400)
+                        return Response(response="That address is already enrolled.", status=409)
 
                     # Create the record
                     recipient = Recipient(address=new_address, joined=datetime.now())
