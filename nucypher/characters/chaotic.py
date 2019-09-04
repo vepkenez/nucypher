@@ -214,7 +214,6 @@ class Felix(Character, NucypherTokenActor):
 
         # Optionally send ether with each token transaction
         self.distribute_ether = distribute_ether
-
         # Banner
         self.log.info(FELIX_BANNER.format(self.checksum_address))
 
@@ -267,9 +266,36 @@ class Felix(Character, NucypherTokenActor):
         #
         # REST Routes
         #
+        @rest_app.route("/status", methods=['GET'])
+        def status():
+            with ThreadedSession(self.db_engine) as session:
+                total_recipients = session.query(self.Recipient).count()
+                last_recipient = session.query(self.Recipient).filter(
+                    self.Recipient.last_disbursement_time.isnot(None)
+                ).order_by('last_disbursement_time').first()
+
+                last_address = last_recipient.address if last_recipient else None
+                last_transaction_date = last_recipient.last_disbursement_time.isoformat() if last_recipient else None
+
+                unfunded = session.query(self.Recipient).filter(
+                    self.Recipient.last_disbursement_time.is_(None)).count()
+
+                return json.dumps(
+                        {
+                            "total_recipients": total_recipients,
+                            "latest_recipient": last_address,
+                            "latest_disburse_date": last_transaction_date,
+                            "unfunded_recipients": unfunded,
+                            "state": {
+                                "eth": str(self.eth_balance),
+                                "NU": str(self.token_balance),
+                                "address": self.checksum_address,
+                                "contract_address": self.token_agent.contract_address,
+                            }
+                        }
+                    )
 
         @rest_app.route("/", methods=['GET'])
-        @limiter.limit("100/day;20/hour;1/minute")
         def home():
             rendering = render_template(self.TEMPLATE_NAME)
             return rendering
