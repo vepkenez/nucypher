@@ -301,7 +301,6 @@ class Felix(Character, NucypherTokenActor):
             return rendering
 
         @rest_app.route("/register", methods=['POST'])
-        @limiter.limit("5 per day")
         def register():
             """Handle new recipient registration via POST request."""
 
