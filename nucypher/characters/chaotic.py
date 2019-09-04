@@ -136,6 +136,7 @@ class Felix(Character, NucypherTokenActor):
     # Intervals
     DISTRIBUTION_INTERVAL = 60  # seconds
     DISBURSEMENT_INTERVAL = 24 * 365  # only distribute tokens to the same address once each YEAR.
+                                      # yes, this has the effect of making it a one time distribution.
     STAGING_DELAY = 10        # seconds
 
     # Disbursement
@@ -171,7 +172,7 @@ class Felix(Character, NucypherTokenActor):
 
         # Character
         super().__init__(registry=registry, *args, **kwargs)
-        self.log = Logger(f"felix-{self.checksum_address[-6::]}")
+        self.log = Logger(f"felix-{self.checksum_address[:6]}")
 
         # Network
         self.rest_port = rest_port
@@ -419,13 +420,13 @@ class Felix(Character, NucypherTokenActor):
                            'gasPrice': self.blockchain.client.gas_price}
             ether_txhash = self.blockchain.client.send_transaction(transaction)
 
-            self.log.info(f"Disbursement #{self.__disbursement} OK | NU {txhash.hex()[-6:]} | ETH {ether_txhash.hex()[:-6]} "
+            self.log.info(f"Disbursement #{self.__disbursement} OK | NU {txhash.hex()[:6]} | ETH {ether_txhash.hex()[:6]} "
                           f"({str(NU(disbursement, 'NuNit'))} + {self.ETHER_AIRDROP_AMOUNT} wei) -> {recipient_address}")
 
         else:
-        self.log.info(
-            f"Disbursement #{self.__disbursement} OK | {txhash.hex()[-6:]} |"
-            f"({str(NU(disbursement, 'NuNit'))} -> {recipient_address}")
+            self.log.info(
+                f"Disbursement #{self.__disbursement} OK | {txhash.hex()[:6]} |"
+                f"({str(NU(disbursement, 'NuNit'))} -> {recipient_address}")
 
         return txhash
 
@@ -536,4 +537,3 @@ class Felix(Character, NucypherTokenActor):
 
         del self._AIRDROP_QUEUE[self.__airdrop]
         self.__airdrop += 1
-
