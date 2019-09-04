@@ -6,6 +6,7 @@ import eth_utils
 import math
 import maya
 import time
+from decimal import Decimal
 from constant_sorrow.constants import NOT_RUNNING, NO_DATABASE_AVAILABLE
 from datetime import datetime, timedelta
 from flask import Flask, render_template, Response
@@ -133,15 +134,16 @@ class Felix(Character, NucypherTokenActor):
     TEMPLATE_NAME = 'felix.html'
 
     # Intervals
-    DISTRIBUTION_INTERVAL = 60*60   # seconds (60*60=1Hr)
-    DISBURSEMENT_INTERVAL = 24      # (24) hours
-    STAGING_DELAY = 10              # seconds
+    DISTRIBUTION_INTERVAL = 60  # seconds
+    DISBURSEMENT_INTERVAL = 24 * 365  # only distribute tokens to the same address once each YEAR.
+    STAGING_DELAY = 10        # seconds
 
     # Disbursement
     BATCH_SIZE = 10                 # transactions
-    MULTIPLIER = 0.95               # 5% reduction of previous stake is 0.95, for example
-    MINIMUM_DISBURSEMENT = 1e18     # NuNits
-    ETHER_AIRDROP_AMOUNT = int(2e18)  # Wei
+    MULTIPLIER = Decimal('0.9')     # 10% reduction of previous disbursement is 0.9
+                                    # this is not relevant until the year of time declared above, passes.
+    MINIMUM_DISBURSEMENT = int(1e18)     # NuNits (1 NU)
+    ETHER_AIRDROP_AMOUNT = int(1e17)     # Wei (.1 ether)
 
     # Node Discovery
     LEARNING_TIMEOUT = 30           # seconds
@@ -188,6 +190,7 @@ class Felix(Character, NucypherTokenActor):
         self._crypto_power.consume_power_up(transacting_power)
 
         self.token_agent = ContractAgency.get_agent(NucypherTokenAgent, registry=registry)
+        self.blockchain = self.token_agent.blockchain
         self.reserved_addresses = [self.checksum_address, BlockchainInterface.NULL_ADDRESS]
 
         # Update reserved addresses with deployed contracts
@@ -207,7 +210,7 @@ class Felix(Character, NucypherTokenActor):
         self.economics = economics
 
         self.MAXIMUM_DISBURSEMENT = economics.maximum_allowed_locked
-        self.INITIAL_DISBURSEMENT = economics.minimum_allowed_locked
+        self.INITIAL_DISBURSEMENT = economics.minimum_allowed_locked * 3
 
         # Optionally send ether with each token transaction
         self.distribute_ether = distribute_ether
