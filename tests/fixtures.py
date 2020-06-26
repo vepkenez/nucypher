@@ -29,7 +29,6 @@ from click.testing import CliRunner
 from datetime import datetime, timedelta
 from eth_utils import to_checksum_address
 from io import StringIO
-from sqlalchemy.engine import create_engine
 from twisted.logger import Logger
 from typing import Tuple
 from umbral import pre
