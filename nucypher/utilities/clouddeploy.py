@@ -541,7 +541,16 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
     EC2_INSTANCE_SIZE = 't3.small'
 
     # TODO: this probably needs to be region specific...
-    EC2_AMI = 'ami-09dd2e08d601bff67'
+    EC2_AMI_LOOKUP = {
+        'us-west-2': 'ami-09dd2e08d601bff67', # Oregon
+        'us-west-1': 'ami-021809d9177640a20', # California
+        'us-east-2': 'ami-07efac79022b86107', # Ohio
+        'us-east-1': 'ami-0dba2cb6798deb6d8', # Virginia
+        'eu-central-1': 'ami-0c960b947cbb2dd16', # Frankfurt
+        'ap-northeast-1': 'ami-09b86f9709b3c33d4', # Tokyo
+        'ap-southeast-1': 'ami-015a6758451df3cb9', # Singapore
+    }
+
     preferred_platform = 'ubuntu-focal' #unused
 
     @property
@@ -573,7 +582,10 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
             raise AttributeError("AWS profile not configured.")
         self.emitter.echo(f'using profile: {self.profile}')
         if self.profile in profiles:
-            self.session = boto3.Session(profile_name=self.profile)
+
+            self.AWS_REGION = os.getenv('AWS_DEFAULT_REGION') or 'us-east-1'
+            self.emitter.echo(f"Using AWS Region: {self.AWS_REGION}.  Override this by setting AWS_DEFAULT_REGION")
+            self.session = boto3.Session(profile_name=self.profile, region_name=self.AWS_REGION)
             self.ec2Client = self.session.client('ec2')
             self.ec2Resource = self.session.resource('ec2')
         else:
@@ -742,12 +754,13 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
                 self.ec2Resource.InternetGateway(self.config['InternetGateway']).delete()
                 self.emitter.echo(f'deleted InternetGateway: {self.config["InternetGateway"]}')
                 del self.config['InternetGateway']
-            self._write_config()
+                self._write_config()
 
             if self.config.get('Vpc'):
                 vpc.delete()
                 self.emitter.echo(f'deleted Vpc: {self.config["Vpc"]}')
                 del self.config['Vpc']
+                self._write_config()
 
             if self.config.get('keypair'):
                 self.emitter.echo(f'deleting keypair {self.keypair} in 5 seconds...', color='red')
@@ -755,12 +768,14 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
                 self.ec2Client.delete_key_pair(KeyName=self.config.get('keypair'))
                 del self.config['keypair']
                 os.remove(self.config['keypair_path'])
+                del self.config['keypair_path']
+                self._write_config()
 
         return True
 
     def create_new_node(self, node_name):
         new_instance_data = self.ec2Client.run_instances(
-            ImageId=self.EC2_AMI,
+            ImageId=self.EC2_AMI_LOOKUP.get(self.AWS_REGION),
             InstanceType=self.EC2_INSTANCE_SIZE,
             MaxCount=1,
             MinCount=1,
