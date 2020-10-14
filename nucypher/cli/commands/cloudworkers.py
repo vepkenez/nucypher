@@ -205,8 +205,10 @@ def destroy(general_config, cloudprovider, namespace, network):
 
 
 @cloudworkers.command('status')
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
 @group_general_config
-def status(general_config):
+def status(general_config, namespace, network):
     """Displays worker status and updates worker data in stakeholder config"""
 
     emitter = setup_emitter(general_config)
@@ -214,5 +216,5 @@ def status(general_config):
         emitter.echo("Ansible is required to use `nucypher cloudworkers *` commands.  (Please run 'pip install ansible'.)", color="red")
         return
 
-    deployer = CloudDeployers.get_deployer('generic')(emitter, None, None)
+    deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, namespace=namespace, network=network)
     deployer.get_worker_status(deployer.config['instances'].keys())

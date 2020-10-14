@@ -166,14 +166,15 @@ class BaseCloudNodeConfigurator:
         # these values for each node if it happens upon them in some output
         self.output_capture = {'worker address': [], 'rest url': [], 'nucypher version': [], 'nickname': []}
 
-        # where we save our state data so we can remember the resources we created for future use
-        print (DEFAULT_CONFIG_ROOT, NODE_CONFIG_STORAGE_KEY, self.network, self.namespace, self.config_filename)
-        self.config_path = os.path.join(DEFAULT_CONFIG_ROOT, NODE_CONFIG_STORAGE_KEY, self.network, self.namespace, self.config_filename)
-
         if pre_config:
             self.config = pre_config
             self.namespace_network = self.config['namespace']
             return
+
+        # where we save our state data so we can remember the resources we created for future use
+        self.config_path = os.path.join(DEFAULT_CONFIG_ROOT, NODE_CONFIG_STORAGE_KEY, self.network, self.namespace, self.config_filename)
+
+
 
         if os.path.exists(self.config_path):
             self.config = json.load(open(self.config_path))
@@ -212,7 +213,7 @@ class BaseCloudNodeConfigurator:
         self.nodes_are_decentralized = 'geth.ipc' in self.config['blockchain_provider']
         self.config['stakeholder_config_file'] = stakeholder_config_path
         self.config['use-prometheus'] = prometheus
-
+        self.emitter.echo(f'using config file: "{self.config_path}"')
         self._write_config()
 
     def _write_config(self):
@@ -415,7 +416,9 @@ class BaseCloudNodeConfigurator:
                 self.emitter,
                 self.stakeholder,
                 self.config['stakeholder_config_file'],
-                pre_config=self.config
+                pre_config=self.config,
+                namespace=self.namespace,
+                network=self.network
             )
             self.emitter.echo(f"\t {dep.format_ssh_cmd(host_data)}", color="yellow")
 
