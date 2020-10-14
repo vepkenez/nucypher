@@ -55,8 +55,10 @@ def cloudworkers():
 @click.option('--include-stakeholder', 'stakes', help="limit worker to specified stakeholder addresses", multiple=True)
 @click.option('--wipe', help="Clear nucypher configs on existing nodes and start a fresh node with new keys.", default=False, is_flag=True)
 @click.option('--prometheus', help="Run Prometheus on workers.", default=False, is_flag=True)
+@click.option('--create-unstaked', help="Just create this many nodes.  Don't tie them to any stakes.", type=click.INT, default=0)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
 @group_general_config
-def up(general_config, staker_options, config_file, cloudprovider, aws_profile, remote_provider, nucypher_image, seed_network, sentry_dsn, stakes, wipe, prometheus):
+def up(general_config, staker_options, config_file, cloudprovider, aws_profile, remote_provider, nucypher_image, seed_network, sentry_dsn, stakes, wipe, prometheus, create_unstaked, namespace):
     """Creates workers for all stakes owned by the user for the given network."""
 
     emitter = setup_emitter(general_config)
@@ -67,7 +69,7 @@ def up(general_config, staker_options, config_file, cloudprovider, aws_profile, 
     STAKEHOLDER = staker_options.create_character(emitter, config_file)
 
     stakers = STAKEHOLDER.get_stakers()
-    if not stakers:
+    if not stakers and not create_unstaked:
         emitter.echo("No staking accounts found.")
         return
 
@@ -75,12 +77,46 @@ def up(general_config, staker_options, config_file, cloudprovider, aws_profile, 
 
     config_file = config_file or StakeHolderConfiguration.default_filepath()
 
-    deployer = CloudDeployers.get_deployer(cloudprovider)(emitter, STAKEHOLDER, config_file, remote_provider, nucypher_image, seed_network, sentry_dsn, aws_profile, prometheus)
-    config = deployer.create_nodes_for_stakers(staker_addresses)
+    deployer = CloudDeployers.get_deployer(cloudprovider)(emitter, STAKEHOLDER, config_file, remote_provider, nucypher_image, seed_network, sentry_dsn, aws_profile, prometheus, namespace=namespace, network=STAKEHOLDER.network)
+    if staker_addresses:
+        config = deployer.create_nodes(staker_addresses)
 
     if config.get('instances') and len(config.get('instances')) >= len(staker_addresses):
         emitter.echo('Nodes exist for all requested stakes', color="yellow")
         deployer.deploy_nucypher_on_existing_nodes(staker_addresses, wipe_nucypher=wipe)
+
+
+@cloudworkers.command('create')
+@click.option('--cloudprovider', help="aws or digitalocean", default='aws')
+@click.option('--aws-profile', help="The cloud provider account profile you'd like to use (an aws profile)", default=None)
+@click.option('--remote-provider', help="The blockchain provider for the remote node, if not provided, nodes will run geth.", default=None)
+@click.option('--nucypher-image', help="The docker image containing the nucypher code to run on the remote nodes. (default is nucypher/nucypher:latest)", default=None)
+@click.option('--seed-network', help="Do you want the 1st node to be --lonely and act as a seed node for this network", default=False, is_flag=True)
+@click.option('--sentry-dsn', help="a sentry dsn for these workers (https://sentry.io/)", default=None)
+@click.option('--prometheus', help="Run Prometheus on workers.", default=False, is_flag=True)
+@click.option('--count', help="Create this many nodes.", type=click.INT, default=1)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
+@group_general_config
+def create(general_config, cloudprovider, aws_profile, remote_provider, nucypher_image, seed_network, sentry_dsn, prometheus, count, namespace, network):
+    """Creates the required number of workers to be staked later under a namespace"""
+
+    emitter = setup_emitter(general_config)
+
+    if not CloudDeployers:
+        emitter.echo("Ansible is required to use this command.  (Please run 'pip install ansible'.)", color="red")
+        return
+
+    deployer = CloudDeployers.get_deployer(cloudprovider)(emitter, None, None, remote_provider, nucypher_image, seed_network, sentry_dsn, aws_profile, prometheus, namespace=namespace, network=network)
+    if not namespace:
+        emitter.echo("A namespace is required.  It should be something to help remember what these hosts are for or even just today's date.", color="red")
+        return
+    names = [f'{namespace}-{network}-{i}' for i in range(1, count + 1)]
+    config = deployer.create_nodes(names, unstaked=True)
+
+    if config.get('instances') and len(config.get('instances')) >= count:
+        emitter.echo('The requested number of nodes now exist', color="green")
+        deployer.deploy_nucypher_on_existing_nodes(names)
 
 
 @cloudworkers.command('add')
@@ -91,9 +127,11 @@ def up(general_config, staker_options, config_file, cloudprovider, aws_profile, 
 @click.option('--login-name', help="The name username of a user with root privileges we can ssh as on the host.", required=True)
 @click.option('--key-path', help="The path to a keypair we will need to ssh into this host", default="~/.ssh/id_rsa.pub")
 @click.option('--ssh-port', help="The port this host's ssh daemon is listening on", default=22)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
 @group_general_config
-def add(general_config, staker_options, config_file, staker_address, host_address, login_name, key_path, ssh_port):
-    """Creates workers for all stakes owned by the user for the given network."""
+def add(general_config, staker_options, config_file, staker_address, host_address, login_name, key_path, ssh_port, namespace, network):
+    """Sets an existing node as the host for the given staker address."""
 
     emitter = setup_emitter(general_config)
 
@@ -111,23 +149,22 @@ def add(general_config, staker_options, config_file, staker_address, host_addres
 
     config_file = config_file or StakeHolderConfiguration.default_filepath()
 
-    deployer = CloudDeployers.get_deployer('generic')(emitter, STAKEHOLDER, config_file)
-    config = deployer.create_nodes_for_stakers(staker_addresses, host_address, login_name, key_path, ssh_port)
+    deployer = CloudDeployers.get_deployer('generic')(emitter, STAKEHOLDER, config_file, namespace=namespace, network=STAKEHOLDER.network)
+    config = deployer.create_nodes(staker_addresses, host_address, login_name, key_path, ssh_port)
 
 
 
 @cloudworkers.command('deploy')
-@group_staker_options
-@option_config_file
 @click.option('--remote-provider', help="The blockchain provider for the remote node, if not provided nodes will run geth.", default=None)
 @click.option('--nucypher-image', help="The docker image containing the nucypher code to run on the remote nodes.", default=None)
 @click.option('--seed-network', help="Do you want the 1st node to be --lonely and act as a seed node for this network", default=False, is_flag=True)
 @click.option('--sentry-dsn', help="a sentry dsn for these workers (https://sentry.io/)", default=None)
-@click.option('--include-stakeholder', 'stakes', help="limit worker to specified stakeholder addresses", multiple=True)
-@click.option('--wipe', help="Clear your nucypher config and start a fresh node with new kets", default=False, is_flag=True)
+@click.option('--wipe', help="Clear your nucypher config and start a fresh node with new keys", default=False, is_flag=True)
 @click.option('--prometheus', help="Run Prometheus on workers.", default=False, is_flag=True)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
 @group_general_config
-def deploy(general_config, staker_options, config_file, remote_provider, nucypher_image, seed_network, sentry_dsn, stakes, wipe, prometheus):
+def deploy(general_config, remote_provider, nucypher_image, seed_network, sentry_dsn, wipe, prometheus, namespace, network):
     """Deploys NuCypher on existing hardware."""
 
     emitter = setup_emitter(general_config)
@@ -135,79 +172,47 @@ def deploy(general_config, staker_options, config_file, remote_provider, nucyphe
     if not CloudDeployers:
         emitter.echo("Ansible is required to use `nucypher cloudworkers *` commands.  (Please run 'pip install ansible'.)", color="red")
         return
-    STAKEHOLDER = staker_options.create_character(emitter, config_file)
 
-    stakers = STAKEHOLDER.get_stakers()
-    if not stakers:
-        emitter.echo("No staking accounts found.")
-        return
+    deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, remote_provider, nucypher_image, seed_network, sentry_dsn, prometheus=prometheus, namespace=namespace, network=network)
 
-    staker_addresses = filter_staker_addresses(stakers, stakes)
-
-    config_file = config_file or StakeHolderConfiguration.default_filepath()
-
-    deployer = CloudDeployers.get_deployer('generic')(emitter, STAKEHOLDER, config_file, remote_provider, nucypher_image, seed_network, sentry_dsn, prometheus=prometheus)
-
-    emitter.echo("found nodes for the following stakers:")
-    for staker_address in staker_addresses:
-        if deployer.config['instances'].get(staker_address):
-            data = deployer.config['instances'].get(staker_address)
-            emitter.echo(f'\t{staker_address}: {data["publicaddress"]}', color="yellow")
-    deployer.deploy_nucypher_on_existing_nodes(staker_addresses, wipe_nucypher=wipe)
+    emitter.echo(f"found deploying {nucypher_image} on the following existing hosts:")
+    for name, hostdata in deployer.config['instances'].items():
+        emitter.echo(f'\t{name}: {hostdata["publicaddress"]}', color="yellow")
+    deployer.deploy_nucypher_on_existing_nodes(deployer.config['instances'].keys(), wipe_nucypher=wipe)
 
 
 @cloudworkers.command('destroy')
-@group_staker_options
-@option_config_file
 @click.option('--cloudprovider', help="aws or digitalocean")
-@click.option('--include-stakeholder', 'stakes', help="one or more stakeholder addresses to whom we should limit worker destruction", multiple=True)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
 @group_general_config
-def destroy(general_config, staker_options, config_file, cloudprovider, stakes):
-    """Cleans up all previously created resources for the given netork for the cloud providern"""
+def destroy(general_config, cloudprovider, namespace, network):
+    """Cleans up all previously created resources for the given network for the cloud providern"""
 
     emitter = setup_emitter(general_config)
     if not CloudDeployers:
         emitter.echo("Ansible is required to use `nucypher cloudworkers *` commands.  (Please run 'pip install ansible'.)", color="red")
         return
-    STAKEHOLDER = staker_options.create_character(emitter, config_file)
-
-    stakers = STAKEHOLDER.get_stakers()
-    if not stakers:
-        emitter.echo("No staking accounts found.")
-        return
-
-    staker_addresses = filter_staker_addresses(stakers, stakes)
-
-    config_file = config_file or StakeHolderConfiguration.default_filepath()
 
     if not cloudprovider:
-        hosts = CloudDeployers.get_deployer('generic')(emitter, STAKEHOLDER, config_file).get_all_hosts()
+        hosts = CloudDeployers.get_deployer('generic')(emitter, None, None, namespace=namespace, network=network).get_all_hosts()
         if len(set(host['provider'] for address, host in hosts)) == 1:
             cloudprovider = hosts[0][1]['provider']
         else:
             emitter.echo("Please specify which provider's hosts you'd like to destroy using --cloudprovider (digitalocean or aws)")
-    deployer = CloudDeployers.get_deployer(cloudprovider)(emitter, STAKEHOLDER, config_file)
-    deployer.destroy_resources(staker_addresses=staker_addresses)
+    deployer = CloudDeployers.get_deployer(cloudprovider)(emitter, None, None, namespace=namespace, network=network)
+    deployer.destroy_resources(node_names=deployer.config['instances'].keys())
 
 
 @cloudworkers.command('status')
-@group_staker_options
-@option_config_file
-@click.option('--cloudprovider', help="aws or digitalocean")
-@click.option('--include-stakeholder', 'stakes', help="only show nodes for included stakeholder addresses", multiple=True)
 @group_general_config
-def status(general_config, staker_options, config_file, cloudprovider, stakes):
+def status(general_config):
     """Displays worker status and updates worker data in stakeholder config"""
 
     emitter = setup_emitter(general_config)
     if not CloudDeployers:
         emitter.echo("Ansible is required to use `nucypher cloudworkers *` commands.  (Please run 'pip install ansible'.)", color="red")
         return
-    STAKEHOLDER = staker_options.create_character(emitter, config_file)
-    config_file = config_file or StakeHolderConfiguration.default_filepath()
-    deployer = CloudDeployers.get_deployer('generic')(emitter, STAKEHOLDER, config_file)
 
-    stakers = STAKEHOLDER.get_stakers()
-    staker_addresses = filter_staker_addresses(stakers, stakes)
-
-    deployer.get_worker_status(staker_addresses)
+    deployer = CloudDeployers.get_deployer('generic')(emitter, None, None)
+    deployer.get_worker_status(deployer.config['instances'].keys())

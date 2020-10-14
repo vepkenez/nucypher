@@ -148,13 +148,18 @@ class BaseCloudNodeConfigurator:
         sentry_dsn=None,
         profile=None,
         prometheus=False,
-        pre_config=False
+        pre_config=False,
+        network=None,
+        namespace=None,
         ):
 
         self.emitter = emitter
         self.stakeholder = stakeholder
-        self.config_filename = f'{self.stakeholder.network}.json'
-        self.network = self.stakeholder.network
+        self.network = network
+        self.namespace = namespace or 'local-stakeholders'
+
+        self.config_filename = f'{self.network}-{self.namespace}.json'
+
         self.created_new_nodes = False
 
         # the keys in this dict are used as search patterns by the anisble result collector and it will return
@@ -162,19 +167,24 @@ class BaseCloudNodeConfigurator:
         self.output_capture = {'worker address': [], 'rest url': [], 'nucypher version': [], 'nickname': []}
 
         # where we save our state data so we can remember the resources we created for future use
-        self.config_path = os.path.join(DEFAULT_CONFIG_ROOT, NODE_CONFIG_STORAGE_KEY, self.config_filename)
+        print (DEFAULT_CONFIG_ROOT, NODE_CONFIG_STORAGE_KEY, self.network, self.namespace, self.config_filename)
+        self.config_path = os.path.join(DEFAULT_CONFIG_ROOT, NODE_CONFIG_STORAGE_KEY, self.network, self.namespace, self.config_filename)
+
         if pre_config:
             self.config = pre_config
-            self.namespace = self.config['namespace']
+            self.namespace_network = self.config['namespace']
             return
 
         if os.path.exists(self.config_path):
             self.config = json.load(open(self.config_path))
-            self.namespace = self.config['namespace']
+            self.namespace_network = self.config['namespace']
         else:
-            self.namespace = f'{self.stakeholder.network}-{maya.now().date.isoformat()}'
+            self.namespace_network = f'{self.network}-{self.namespace}-{maya.now().date.isoformat()}'
+            self.emitter.echo(f"Configuring Cloud Deployer with namespace: '{self.namespace_network}'")
+            time.sleep(3)
+
             self.config = {
-                "namespace": self.namespace,
+                "namespace": self.namespace_network,
                 "keyringpassword": b64encode(os.urandom(64)).decode('utf-8'),
                 "ethpassword": b64encode(os.urandom(64)).decode('utf-8'),
             }
@@ -232,13 +242,13 @@ class BaseCloudNodeConfigurator:
 
     @property
     def inventory_path(self):
-        return os.path.join(DEFAULT_CONFIG_ROOT, NODE_CONFIG_STORAGE_KEY, f'{self.namespace}.ansible_inventory.yml')
+        return os.path.join(DEFAULT_CONFIG_ROOT, NODE_CONFIG_STORAGE_KEY, f'{self.namespace_network}.ansible_inventory.yml')
 
-    def generate_ansible_inventory(self, staker_addresses, wipe_nucypher=False):
+    def generate_ansible_inventory(self, node_names, wipe_nucypher=False):
 
         inventory_content = self._inventory_template.render(
             deployer=self,
-            nodes=[value for key, value in self.config['instances'].items() if key in staker_addresses],
+            nodes=[value for key, value in self.config['instances'].items() if key in node_names],
             wipe_nucypher=wipe_nucypher
         )
 
@@ -249,10 +259,10 @@ class BaseCloudNodeConfigurator:
 
         return self.inventory_path
 
-    def create_nodes_for_stakers(self, stakers):
-        count = len(stakers)
-        self.emitter.echo(f"ensuring cloud nodes exist for the following {count} stakers:")
-        for s in stakers:
+    def create_nodes(self, node_names, unstaked=False):
+        count = len(node_names)
+        self.emitter.echo(f"ensuring cloud nodes exist for the following {count} node names:")
+        for s in node_names:
             self.emitter.echo(f'\t{s}')
         time.sleep(3)
         self._do_setup_for_instance_creation()
@@ -260,14 +270,14 @@ class BaseCloudNodeConfigurator:
         if not self.config.get('instances'):
             self.config['instances'] = {}
 
-        for address in stakers:
-            existing_node = self.config['instances'].get(address)
+        for node_name in node_names:
+            existing_node = self.config['instances'].get(node_name)
             if not existing_node:
-                self.emitter.echo(f'creating new node for {address}', color='yellow')
+                self.emitter.echo(f'creating new node for {node_name}', color='yellow')
                 time.sleep(3)
-                node_data = self.create_new_node_for_staker(address)
+                node_data = self.create_new_node(node_name)
                 node_data['provider'] = self.provider_name
-                self.config['instances'][address] = node_data
+                self.config['instances'][node_name] = node_data
                 if self.config['seed_network'] and not self.config.get('seed_node'):
                     self.config['seed_node'] = node_data['publicaddress']
                 self._write_config()
@@ -280,18 +290,18 @@ class BaseCloudNodeConfigurator:
         template_path = os.path.join(os.path.dirname(__file__), 'templates', 'cloud_deploy_ansible_inventory.mako')
         return Template(filename=template_path)
 
-    def deploy_nucypher_on_existing_nodes(self, staker_addresses, wipe_nucypher=False):
+    def deploy_nucypher_on_existing_nodes(self, node_names, wipe_nucypher=False):
 
         # first update any specified input in our node config
         for k, input_specified_value in self.host_level_overrides.items():
-            for address in staker_addresses:
-                if self.config['instances'].get(address):
+            for node_name in node_names:
+                if self.config['instances'].get(node_name):
                     # if an instance already has a specified value, we only override
                     # it if that value was input for this command invocation
                     if input_specified_value:
-                        self.config['instances'][address][k] = input_specified_value
-                    elif not self.config['instances'][address].get(k):
-                        self.config['instances'][address][k] = self.config[k]
+                        self.config['instances'][node_name][k] = input_specified_value
+                    elif not self.config['instances'][node_name].get(k):
+                        self.config['instances'][node_name][k] = self.config[k]
 
                     self._write_config()
 
@@ -304,9 +314,8 @@ class BaseCloudNodeConfigurator:
         if self.config.get('keypair_path'):
             self.emitter.echo(f"using keypair file at {self.config['keypair_path']}", color='yellow')
 
-        self.generate_ansible_inventory(staker_addresses, wipe_nucypher=wipe_nucypher)
+        self.generate_ansible_inventory(node_names, wipe_nucypher=wipe_nucypher)
 
-        results = self.output_capture
         loader = DataLoader()
         inventory = InventoryManager(loader=loader, sources=self.inventory_path)
         callback = AnsiblePlayBookResultsCollector(sock=self.emitter, return_results=self.output_capture)
@@ -326,7 +335,7 @@ class BaseCloudNodeConfigurator:
         self.give_helpful_hints()
 
 
-    def get_worker_status(self, staker_addresses):
+    def get_worker_status(self, node_names):
 
         self.emitter.echo('Running ansible status playbook.', color='green')
         self.emitter.echo('If something goes wrong, it is generally safe to ctrl-c and run the previous command again.')
@@ -336,7 +345,7 @@ class BaseCloudNodeConfigurator:
             self.emitter.echo(f"using keypair file at {self.config['keypair_path']}", color='yellow')
 
 
-        self.generate_ansible_inventory(staker_addresses)
+        self.generate_ansible_inventory(node_names)
 
         loader = DataLoader()
         inventory = InventoryManager(loader=loader, sources=self.inventory_path)
@@ -358,17 +367,17 @@ class BaseCloudNodeConfigurator:
 
     def get_provider_hosts(self):
         return [
-            (address, host_data) for address, host_data in self.get_all_hosts()
+            (node_name, host_data) for node_name, host_data in self.get_all_hosts()
             if host_data['provider'] == self.provider_name
         ]
 
     def get_all_hosts(self):
-        return [(address, host_data) for address, host_data in self.config['instances'].items()]
+        return [(node_name, host_data) for node_name, host_data in self.config['instances'].items()]
 
-    def destroy_resources(self, staker_addresses=None):
-        addresses = [s for s in staker_addresses if s in self.get_provider_hosts()]
-        self.emitter.echo(f"Destroying all {self.provider_name} instances for stakers: {' '.join(addresses)}")
-        if self._destroy_resources(addresses):
+    def destroy_resources(self, node_names=None):
+        node_names = [s for s in node_names if s in self.get_provider_hosts()]
+        self.emitter.echo(f"Destroying all {self.provider_name} instances for node_names: {' '.join(node_names)}")
+        if self._destroy_resources(node_names):
             self.emitter.echo(f"deleted all requested resources for {self.provider_name}.  We are clean.  No money is being spent.", color="green")
 
     def _destroy_resources(self):
@@ -389,6 +398,8 @@ class BaseCloudNodeConfigurator:
         self.update_stakeholder_config()
 
     def update_stakeholder_config(self):
+        if not self.stakeholder:
+            return
         data = json.loads(open(self.config['stakeholder_config_file'], 'r').read())
         existing_worker_data = data.get('worker_data') or {}
 
@@ -399,18 +410,18 @@ class BaseCloudNodeConfigurator:
 
     def give_helpful_hints(self):
         self.emitter.echo("You may wish to ssh into your running hosts:")
-        for address, n in self.get_all_hosts():
-            dep = CloudDeployers.get_deployer(n['provider'])(
+        for node_name, host_data in self.get_all_hosts():
+            dep = CloudDeployers.get_deployer(host_data['provider'])(
                 self.emitter,
                 self.stakeholder,
                 self.config['stakeholder_config_file'],
                 pre_config=self.config
             )
-            self.emitter.echo(f"\t {dep.format_ssh_cmd(n)}", color="yellow")
+            self.emitter.echo(f"\t {dep.format_ssh_cmd(host_data)}", color="yellow")
 
-    def format_ssh_cmd(self, hostdata):
-        user = next(v['value'] for v in hostdata['provider_deploy_attrs'] if v['key'] == 'default_user')
-        return f"ssh {user}@{hostdata['publicaddress']}"
+    def format_ssh_cmd(self, host_data):
+        user = next(v['value'] for v in host_data['provider_deploy_attrs'] if v['key'] == 'default_user')
+        return f"ssh {user}@{host_data['publicaddress']}"
 
 
 class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
@@ -450,11 +461,11 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
 
         self._write_config()
 
-    def create_new_node_for_staker(self, address):
+    def create_new_node(self, node_name):
 
         response = requests.post("https://api.digitalocean.com/v2/droplets",
             {
-                "name": f'{self.namespace}-{address}',
+                "name": f'{node_name}',
                 "region": self.region,
                 "size": self.instance_size,
                 "image":"ubuntu-20-04-x64",
@@ -496,22 +507,22 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
             self.emitter.echo(response.text, color='red')
             raise BaseException("Error creating resources in DigitalOcean")
 
-    def _destroy_resources(self, stakes):
+    def _destroy_resources(self, node_names):
 
         existing_instances = copy.copy(self.config.get('instances'))
         if existing_instances:
-            for address, instance in existing_instances.items():
-                if stakes and not address in stakes:
+            for node_name, instance in existing_instances.items():
+                if node_names and not node_name in node_names:
                     continue
-                self.emitter.echo(f"deleting worker instance for {address} in 3 seconds...", color='red')
+                self.emitter.echo(f"deleting worker instance for {node_name} in 3 seconds...", color='red')
                 time.sleep(3)
                 if requests.delete(
                     f'https://api.digitalocean.com/v2/droplets/{instance["InstanceId"]}/',
                     headers = {
                         "Authorization": f'Bearer {self.token}'
                 }).status_code == 204:
-                    self.emitter.echo(f"\tdestroyed instance for {address}")
-                    del self.config['instances'][address]
+                    self.emitter.echo(f"\tdestroyed instance for {node_name}")
+                    del self.config['instances'][node_name]
                     self._write_config()
                 else:
                     raise
@@ -583,11 +594,11 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
     @property
     def aws_tags(self):
         # to keep track of the junk we put in the cloud
-        return [{"Key": "Name", "Value": self.namespace}]
+        return [{"Key": "Name", "Value": self.namespace_network}]
 
     def _create_keypair(self):
-        new_keypair_data = self.ec2Client.create_key_pair(KeyName=f'{self.namespace}')
-        outpath = os.path.join(DEFAULT_CONFIG_ROOT, NODE_CONFIG_STORAGE_KEY, f'{self.namespace}.awskeypair')
+        new_keypair_data = self.ec2Client.create_key_pair(KeyName=f'{self.namespace_network}')
+        outpath = os.path.join(DEFAULT_CONFIG_ROOT, NODE_CONFIG_STORAGE_KEY, f'{self.namespace_network}.awskeypair')
         os.makedirs(os.path.dirname(outpath), exist_ok=True)
         with open(outpath, 'w') as outfile:
             outfile.write(new_keypair_data['KeyMaterial'])
@@ -598,9 +609,9 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
 
     def _delete_keypair(self):
         # only use self.namespace here to avoid accidental deletions of pre-existing keypairs
-        deleted_keypair_data = self.ec2Client.delete_key_pair(KeyName=f'{self.namespace}')
+        deleted_keypair_data = self.ec2Client.delete_key_pair(KeyName=f'{self.namespace_network}')
         if deleted_keypair_data['HTTPStatusCode'] == 200:
-            outpath = os.path.join(DEFAULT_CONFIG_ROOT, NODE_CONFIG_STORAGE_KEY, f'{self.namespace}.awskeypair')
+            outpath = os.path.join(DEFAULT_CONFIG_ROOT, NODE_CONFIG_STORAGE_KEY, f'{self.namespace_network}.awskeypair')
             os.remove(outpath)
             self.emitter.echo(f"keypair at {outpath}, was deleted", color='yellow')
 
@@ -666,7 +677,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
         routetable.associate_with_subnet(SubnetId=self.config['Subnet'])
 
         if not self.config.get('SecurityGroup'):
-            securitygroupdata = self.ec2Client.create_security_group(GroupName=f'Ursula-{self.namespace}', Description='ssh and Nucypher ports', VpcId=self.config['Vpc'])
+            securitygroupdata = self.ec2Client.create_security_group(GroupName=f'Ursula-{self.namespace_network}', Description='ssh and Nucypher ports', VpcId=self.config['Vpc'])
             self.config['SecurityGroup'] = sg_id = securitygroupdata['GroupId']
             self._write_config()
             securitygroup = self.ec2Resource.SecurityGroup(sg_id)
@@ -688,25 +699,26 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
         self._configure_path_to_internet()
         self.emitter.echo("all prerequisite cloud resources do exist.")
 
-    def _destroy_resources(self, stakes):
+    def _destroy_resources(self, node_names):
         try:
             from botocore import exceptions as botoexceptions
         except ImportError:
             self.emitter.echo("You need to have boto3 installed to use this feature (pip3 install boto3)")
             return
 
+        existing_instances = copy.copy(self.config.get('instances'))
         vpc = self.ec2Resource.Vpc(self.config['Vpc'])
-        if self.config.get('instances'):
-            for address, instance in self.config['instances'].items():
-                if stakes and not address in stakes:
+        if existing_instances:
+            for node_name, instance in existing_instances.items():
+                if node_names and not node_name in node_name:
                     continue
-                self.emitter.echo(f"deleting worker instance for {address} in 3 seconds...", color='red')
+                self.emitter.echo(f"deleting worker instance for {node_name} in 3 seconds...", color='red')
                 time.sleep(3)
                 self.ec2Resource.Instance(instance['InstanceId']).terminate()
-                del self.config['instances'][address]
+                del self.config['instances'][node_name]
                 self._write_config()
 
-        if not self.config.instances:
+        if not len(self.get_provider_hosts()):
             self.emitter.echo("waiting for instance termination...")
             time.sleep(10)
             for subresource in ['Subnet', 'RouteTable', 'SecurityGroup']:
@@ -746,7 +758,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
 
         return True
 
-    def create_new_node_for_staker(self, address):
+    def create_new_node(self, node_name):
         new_instance_data = self.ec2Client.run_instances(
             ImageId=self.EC2_AMI,
             InstanceType=self.EC2_INSTANCE_SIZE,
@@ -770,7 +782,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
                     'Tags': [
                         {
                             'Key': 'Name',
-                            'Value': f'{self.namespace}-{address}'
+                            'Value': f'{node_name}'
                         },
                     ]
                 },
@@ -788,23 +800,23 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
 
         return node_data
 
-    def format_ssh_cmd(self, hostdata):
-        keypair_path = next(v['value'] for v in hostdata['provider_deploy_attrs'] if v['key'] == 'ansible_ssh_private_key_file')
-        return f'{super().format_ssh_cmd(hostdata)} -i "{keypair_path}"'
+    def format_ssh_cmd(self, host_data):
+        keypair_path = next(v['value'] for v in host_data['provider_deploy_attrs'] if v['key'] == 'ansible_ssh_private_key_file')
+        return f'{super().format_ssh_cmd(host_data)} -i "{keypair_path}"'
 
 class GenericConfigurator(BaseCloudNodeConfigurator):
 
     provider_name = 'generic'
 
-    def create_nodes_for_stakers(self, stakers, host_address, login_name, key_path, ssh_port):
+    def create_nodes(self, node_names, host_address, login_name, key_path, ssh_port):
 
         if not self.config.get('instances'):
             self.config['instances'] = {}
 
-        for address in stakers:
-            node_data = self.config['instances'].get(address, {})
+        for node_name in node_names:
+            node_data = self.config['instances'].get(node_name, {})
             if node_data:
-                self.emitter.echo(f"Host info already exists for staker {address}; Updating and proceeding.", color="yellow")
+                self.emitter.echo(f"Host info already exists for staker {node_name}; Updating and proceeding.", color="yellow")
                 time.sleep(3)
 
             node_data['publicaddress'] = host_address
@@ -815,7 +827,7 @@ class GenericConfigurator(BaseCloudNodeConfigurator):
                 {'key': 'ansible_port', 'value': ssh_port}
             ]
 
-            self.config['instances'][address] = node_data
+            self.config['instances'][node_name] = node_data
             if self.config['seed_network'] and not self.config.get('seed_node'):
                 self.config['seed_node'] = node_data['publicaddress']
             self._write_config()
