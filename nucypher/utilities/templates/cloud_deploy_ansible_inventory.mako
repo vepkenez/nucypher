@@ -31,6 +31,7 @@ all:
                 %endif
                 %if deployer.config.get('sentry_dsn'):
                 SENTRY_DSN: ${deployer.config['sentry_dsn']}
+                NUCYPHER_SENTRY_LOGS: yes
                 %endif
                 wipe_nucypher_config: ${wipe_nucypher}
               hosts:
