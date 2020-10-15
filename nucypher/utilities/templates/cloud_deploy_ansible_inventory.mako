@@ -34,6 +34,7 @@ all:
                 NUCYPHER_SENTRY_LOGS: yes
                 %endif
                 wipe_nucypher_config: ${wipe_nucypher}
+                deployer_config_path: ${deployer.config_dir}
               hosts:
                 %for node in nodes:
                 ${node['publicaddress']}:
