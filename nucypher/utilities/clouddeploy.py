@@ -173,8 +173,7 @@ class BaseCloudNodeConfigurator:
 
         # where we save our state data so we can remember the resources we created for future use
         self.config_path = os.path.join(DEFAULT_CONFIG_ROOT, NODE_CONFIG_STORAGE_KEY, self.network, self.namespace, self.config_filename)
-
-
+        self.config_dir = os.path.dirname(self.config_path)
 
         if os.path.exists(self.config_path):
             self.config = json.load(open(self.config_path))
@@ -303,13 +302,16 @@ class BaseCloudNodeConfigurator:
                         self.config['instances'][node_name][k] = input_specified_value
                     elif not self.config['instances'][node_name].get(k):
                         self.config['instances'][node_name][k] = self.config[k]
-
                     self._write_config()
 
         if self.created_new_nodes:
             self.emitter.echo("--- Giving newly created nodes some time to get ready ----")
             time.sleep(30)
         self.emitter.echo('Running ansible deployment for all running nodes.', color='green')
+
+        if self.config.get('seed_network') is True and not self.config.get('seed_node'):
+            self.config['seed_node'] = list(self.config['instances'].values())[0]['publicaddress']
+            self._write_config()
 
         self.emitter.echo(f"using inventory file at {self.inventory_path}", color='yellow')
         if self.config.get('keypair_path'):
