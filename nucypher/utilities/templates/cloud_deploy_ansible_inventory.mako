@@ -36,17 +36,17 @@ all:
                 wipe_nucypher_config: ${wipe_nucypher}
               hosts:
                 %for node in nodes:
-                ${node.publicaddress}:
-                  %for attr in node.provider_deploy_attrs:
-                  ${attr.key}: ${attr.value}
+                ${node['publicaddress']}:
+                  %for attr in node['provider_deploy_attrs']:
+                  ${attr['key']}: ${attr['value']}
                   %endfor
-                  % if node.blockchain_provider:
-                  blockchain_provider: {{node.blockchain_provider}}
+                  % if node.get('blockchain_provider'):
+                  blockchain_provider: ${node['blockchain_provider']}
                   %endif
-                  %if node.nucypher_image:
-                  nucypher_image: ${node.nucypher_image}
+                  %if node.get('nucypher_image'):
+                  nucypher_image: ${node['nucypher_image']}
                   %endif
-                  %if node.sentry_dsn:
-                  sentry_dsn: ${node.sentry_dsn}
+                  %if node.get('sentry_dsn'):
+                  sentry_dsn: ${node['sentry_dsn']}
                   %endif
                 %endfor
