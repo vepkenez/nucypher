@@ -122,6 +122,28 @@ def create(general_config, cloudprovider, aws_profile, remote_provider, nucypher
 @cloudworkers.command('add')
 @group_staker_options
 @option_config_file
+@click.option('--host-address', help="The IP address or Hostname of the host you are adding.", required=True)
+@click.option('--login-name', help="The name username of a user with root privileges we can ssh as on the host.", required=True)
+@click.option('--key-path', help="The path to a keypair we will need to ssh into this host", default="~/.ssh/id_rsa.pub")
+@click.option('--ssh-port', help="The port this host's ssh daemon is listening on", default=22)
+@click.option('--host-nickname', help="A nickname to remember this host by", type=click.STRING)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
+@group_general_config
+def add(general_config, host_address, login_name, key_path, ssh_port, host_nickname, namespace, network):
+    """Sets an existing node as the host for the given staker address."""
+
+    emitter = setup_emitter(general_config)
+    name = f'{namespace}-{network}-{host_nickname}'
+
+    deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, namespace=namespace, network=network)
+    config = deployer.create_nodes(name, host_address, login_name, key_path, ssh_port)
+    print (config)
+
+
+@cloudworkers.command('add_for_stakes')
+@group_staker_options
+@option_config_file
 @click.option('--staker-address',  help="The staker account address for whom you are adding a worker host.", required=True)
 @click.option('--host-address', help="The IP address or Hostname of the host you are adding.", required=True)
 @click.option('--login-name', help="The name username of a user with root privileges we can ssh as on the host.", required=True)
@@ -129,7 +151,7 @@ def create(general_config, cloudprovider, aws_profile, remote_provider, nucypher
 @click.option('--ssh-port', help="The port this host's ssh daemon is listening on", default=22)
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
 @group_general_config
-def add(general_config, staker_options, config_file, staker_address, host_address, login_name, key_path, ssh_port, namespace):
+def add_for_stakes(general_config, staker_address, host_address, login_name, key_path, ssh_port, namespace):
     """Sets an existing node as the host for the given staker address."""
 
     emitter = setup_emitter(general_config)
