@@ -120,8 +120,6 @@ def create(general_config, cloudprovider, aws_profile, remote_provider, nucypher
 
 
 @cloudworkers.command('add')
-@group_staker_options
-@option_config_file
 @click.option('--host-address', help="The IP address or Hostname of the host you are adding.", required=True)
 @click.option('--login-name', help="The name username of a user with root privileges we can ssh as on the host.", required=True)
 @click.option('--key-path', help="The path to a keypair we will need to ssh into this host", default="~/.ssh/id_rsa.pub")
