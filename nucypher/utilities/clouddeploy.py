@@ -553,7 +553,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
         'us-east-1': 'ami-0dba2cb6798deb6d8', # Virginia
         'eu-central-1': 'ami-0c960b947cbb2dd16', # Frankfurt
         'ap-northeast-1': 'ami-09b86f9709b3c33d4', # Tokyo
-        'ap-southeast-1': 'ami-015a6758451df3cb9', # Singapore
+        'ap-southeast-1': 'ami-093da183b859d5a4b', # Singapore
     }
 
     preferred_platform = 'ubuntu-focal' #unused

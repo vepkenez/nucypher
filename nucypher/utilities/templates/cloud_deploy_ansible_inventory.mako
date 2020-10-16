@@ -26,8 +26,10 @@ all:
                 %endif
                 %if deployer.config.get('seed_node'):
                 SEED_NODE_URI: ${deployer.config['seed_node']}
+                teacher_options: --teacher ${deployer.config['seed_node']}
                 %else:
                 SEED_NODE_URI:
+                teacher_options: ""
                 %endif
                 %if deployer.config.get('sentry_dsn'):
                 SENTRY_DSN: ${deployer.config['sentry_dsn']}
