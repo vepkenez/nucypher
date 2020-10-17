@@ -135,7 +135,7 @@ def add(general_config, host_address, login_name, key_path, ssh_port, host_nickn
     name = f'{namespace}-{network}-{host_nickname}'
 
     deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, namespace=namespace, network=network)
-    config = deployer.create_nodes(name, host_address, login_name, key_path, ssh_port)
+    config = deployer.create_nodes([name], host_address, login_name, key_path, ssh_port)
     print (config)
 
 
