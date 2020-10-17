@@ -16,6 +16,7 @@
 """
 
 import click
+import json
 
 try:
     from nucypher.utilities.clouddeploy import CloudDeployers
@@ -124,8 +125,8 @@ def create(general_config, cloudprovider, aws_profile, remote_provider, nucypher
 @click.option('--login-name', help="The name username of a user with root privileges we can ssh as on the host.", required=True)
 @click.option('--key-path', help="The path to a keypair we will need to ssh into this host", default="~/.ssh/id_rsa.pub")
 @click.option('--ssh-port', help="The port this host's ssh daemon is listening on", default=22)
-@click.option('--host-nickname', help="A nickname to remember this host by", type=click.STRING)
-@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--host-nickname', help="A nickname to remember this host by", type=click.STRING, required=True)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, required=True)
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
 @group_general_config
 def add(general_config, host_address, login_name, key_path, ssh_port, host_nickname, namespace, network):
@@ -136,7 +137,8 @@ def add(general_config, host_address, login_name, key_path, ssh_port, host_nickn
 
     deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, namespace=namespace, network=network)
     config = deployer.create_nodes([name], host_address, login_name, key_path, ssh_port)
-    print (config)
+    print (json.dumps(config, indent=4))
+    emitter.echo(f'Success.  Now run `nucypher cloudworkers deploy --namespace {namespace} --remote-provider <an eth provider>` to deploy Nucypher on this node.', color='green')
 
 
 @cloudworkers.command('add_for_stakes')
