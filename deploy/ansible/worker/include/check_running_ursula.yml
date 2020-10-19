@@ -29,7 +29,7 @@
         validate_certs: no
       register: status_data
 
-    - name: Print Result
+    - name: Print Ursula Status Result
       debug:
         msg:
           "{{status_data.json.nickname}}\n

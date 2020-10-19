@@ -17,6 +17,7 @@
 
 import click
 import json
+import os
 
 try:
     from nucypher.utilities.clouddeploy import CloudDeployers
@@ -239,3 +240,20 @@ def status(general_config, namespace, network):
 
     deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, namespace=namespace, network=network)
     deployer.get_worker_status(deployer.config['instances'].keys())
+
+
+@cloudworkers.command('list-namespaces')
+@click.option('--network', help="The network whose namespaces you want to see.", type=click.STRING, default='mainnet')
+@group_general_config
+def list_namespaces(general_config, network):
+    """Displays worker status and updates worker data in stakeholder config"""
+
+    emitter = setup_emitter(general_config)
+    if not CloudDeployers:
+        emitter.echo("Ansible is required to use `nucypher cloudworkers *` commands.  (Please run 'pip install ansible'.)", color="red")
+        return
+
+    deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, network=network, pre_config={"namespace": None})
+    emitter.echo(f"Listing namespaces in {deployer.network_config_path}")
+    for ns in os.listdir(deployer.network_config_path):
+        emitter.echo(ns)

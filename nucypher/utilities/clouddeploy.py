@@ -59,11 +59,12 @@ class AnsiblePlayBookResultsCollector(CallbackBase):
 
     """
 
-    def __init__(self, sock, *args, return_results=None, **kwargs):
+    def __init__(self, sock, *args, return_results=None, filter_output=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.playbook_results = []
         self.sock = sock
         self.results = return_results
+        self.filter_output = filter_output
 
     def v2_playbook_on_play_start(self, play):
         name = play.get_name().strip()
@@ -74,10 +75,19 @@ class AnsiblePlayBookResultsCollector(CallbackBase):
         self.send_save(msg)
 
     def v2_playbook_on_task_start(self, task, is_conditional):
+
+        if self.filter_output is not None and not task.get_name() in self.filter_output:
+            return
+
         msg = '\nTASK [{}] {}\n'.format(task.get_name(), '*' * 100)
         self.send_save(msg)
 
     def v2_runner_on_ok(self, result, *args, **kwargs):
+        task_name = result._task.get_name()
+
+        if self.filter_output is not None and not task_name in self.filter_output:
+            return
+
         if result.is_changed():
             data = '[{}]=> changed'.format(result._host.name)
         else:
@@ -85,7 +95,7 @@ class AnsiblePlayBookResultsCollector(CallbackBase):
         self.send_save(data, color='yellow' if result.is_changed() else 'green')
         if 'msg' in result._task_fields['args']:
             msg = result._task_fields['args']['msg']
-            self.send_save(msg, color='yellow')
+            self.send_save(msg, color='yellow',)
             self.send_save('\n')
             if self.results:
                 for k in self.results.keys():
@@ -98,15 +108,20 @@ class AnsiblePlayBookResultsCollector(CallbackBase):
     def v2_runner_on_failed(self, result, *args, **kwargs):
         if 'changed' in result._result:
             del result._result['changed']
-        data = 'fail: [{}]=> {}: {}'.format(result._host.name, 'failed',
-                                                                            self._dump_results(result._result))
+        data = 'fail: [{}]=> {}: {}'.format(
+            result._host.name, 'failed',
+            self._dump_results(result._result)
+        )
         self.send_save(data, color='red')
 
     def v2_runner_on_unreachable(self, result):
         if 'changed' in result._result:
             del result._result['changed']
-        data = '[{}]=> {}: {}'.format(result._host.name, 'unreachable',
-                                                                            self._dump_results(result._result))
+        data = '[{}]=> {}: {}'.format(
+            result._host.name,
+            'unreachable',
+            self._dump_results(result._result)
+        )
         self.send_save(data)
 
     def v2_runner_on_skipped(self, result):
@@ -168,11 +183,11 @@ class BaseCloudNodeConfigurator:
 
         if pre_config:
             self.config = pre_config
-            self.namespace_network = self.config['namespace']
+            self.namespace_network = self.config.get('namespace')
             return
 
         # where we save our state data so we can remember the resources we created for future use
-        self.config_path = os.path.join(DEFAULT_CONFIG_ROOT, NODE_CONFIG_STORAGE_KEY, self.network, self.namespace, self.config_filename)
+        self.config_path = os.path.join(self.network_config_path, self.namespace, self.config_filename)
         self.config_dir = os.path.dirname(self.config_path)
 
         if os.path.exists(self.config_path):
@@ -218,6 +233,10 @@ class BaseCloudNodeConfigurator:
     def _write_config(self):
         with open(self.config_path, 'w') as outfile:
             json.dump(self.config, outfile, indent=4)
+
+    @property
+    def network_config_path(self):
+        return os.path.join(DEFAULT_CONFIG_ROOT, NODE_CONFIG_STORAGE_KEY, self.network)
 
     @property
     def _provider_deploy_attrs(self):
@@ -352,7 +371,7 @@ class BaseCloudNodeConfigurator:
 
         loader = DataLoader()
         inventory = InventoryManager(loader=loader, sources=self.inventory_path)
-        callback = AnsiblePlayBookResultsCollector(sock=self.emitter, return_results=self.output_capture)
+        callback = AnsiblePlayBookResultsCollector(sock=self.emitter, return_results=self.output_capture, filter_output=["Print Ursula Status Result"])
         variable_manager = VariableManager(loader=loader, inventory=inventory)
 
         executor = PlaybookExecutor(
