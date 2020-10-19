@@ -185,8 +185,9 @@ def add_for_stakes(general_config, staker_address, host_address, login_name, key
 @click.option('--prometheus', help="Run Prometheus on workers.", default=False, is_flag=True)
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
+@click.option('--gas-strategy', help="Which gas strategy?  (glacial, slow, medium, fast)", type=click.STRING)
 @group_general_config
-def deploy(general_config, remote_provider, nucypher_image, seed_network, sentry_dsn, wipe, prometheus, namespace, network):
+def deploy(general_config, remote_provider, nucypher_image, seed_network, sentry_dsn, wipe, prometheus, namespace, network, gas_strategy):
     """Deploys NuCypher on existing hardware."""
 
     emitter = setup_emitter(general_config)
@@ -195,7 +196,7 @@ def deploy(general_config, remote_provider, nucypher_image, seed_network, sentry
         emitter.echo("Ansible is required to use `nucypher cloudworkers *` commands.  (Please run 'pip install ansible'.)", color="red")
         return
 
-    deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, remote_provider, nucypher_image, seed_network, sentry_dsn, prometheus=prometheus, namespace=namespace, network=network)
+    deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, remote_provider, nucypher_image, seed_network, sentry_dsn, prometheus=prometheus, namespace=namespace, network=network, gas_strategy=gas_strategy)
 
     emitter.echo(f"found deploying {nucypher_image} on the following existing hosts:")
     for name, hostdata in deployer.config['instances'].items():
@@ -203,27 +204,32 @@ def deploy(general_config, remote_provider, nucypher_image, seed_network, sentry
     deployer.deploy_nucypher_on_existing_nodes(deployer.config['instances'].keys(), wipe_nucypher=wipe)
 
 
-@cloudworkers.command('destroy')
-@click.option('--cloudprovider', help="aws or digitalocean")
+@cloudworkers.command('update')
+@click.option('--remote-provider', help="The blockchain provider for the remote node, if not provided nodes will run geth.", default=None)
+@click.option('--nucypher-image', help="The docker image containing the nucypher code to run on the remote nodes.", default=None)
+@click.option('--seed-network', help="Do you want the 1st node to be --lonely and act as a seed node for this network", default=False, is_flag=True)
+@click.option('--sentry-dsn', help="a sentry dsn for these workers (https://sentry.io/)", default=None)
+@click.option('--wipe', help="Clear your nucypher config and start a fresh node with new keys", default=False, is_flag=True)
+@click.option('--prometheus', help="Run Prometheus on workers.", default=False, is_flag=True)
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
+@click.option('--gas-strategy', help="Which gas strategy?  (glacial, slow, medium, fast)", type=click.STRING)
 @group_general_config
-def destroy(general_config, cloudprovider, namespace, network):
-    """Cleans up all previously created resources for the given network for the cloud providern"""
+def update(general_config, remote_provider, nucypher_image, seed_network, sentry_dsn, wipe, prometheus, namespace, network, gas_strategy):
+    """Deploys NuCypher on existing hardware."""
 
     emitter = setup_emitter(general_config)
+
     if not CloudDeployers:
         emitter.echo("Ansible is required to use `nucypher cloudworkers *` commands.  (Please run 'pip install ansible'.)", color="red")
         return
 
-    if not cloudprovider:
-        hosts = CloudDeployers.get_deployer('generic')(emitter, None, None, namespace=namespace, network=network).get_all_hosts()
-        if len(set(host['provider'] for address, host in hosts)) == 1:
-            cloudprovider = hosts[0][1]['provider']
-        else:
-            emitter.echo("Please specify which provider's hosts you'd like to destroy using --cloudprovider (digitalocean or aws)")
-    deployer = CloudDeployers.get_deployer(cloudprovider)(emitter, None, None, namespace=namespace, network=network)
-    deployer.destroy_resources(node_names=deployer.config['instances'].keys())
+    deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, remote_provider, nucypher_image, seed_network, sentry_dsn, prometheus=prometheus, namespace=namespace, network=network, gas_strategy=gas_strategy)
+
+    emitter.echo(f"found deploying {nucypher_image} on the following existing hosts:")
+    for name, hostdata in deployer.config['instances'].items():
+        emitter.echo(f'\t{name}: {hostdata["publicaddress"]}', color="yellow")
+    deployer.update_nucypher_on_existing_nodes(deployer.config['instances'].keys())
 
 
 @cloudworkers.command('status')

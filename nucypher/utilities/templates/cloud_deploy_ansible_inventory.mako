@@ -17,6 +17,7 @@ all:
                 NUCYPHER_KEYRING_PASSWORD: ${deployer.config['keyringpassword']}
                 NUCYPHER_WORKER_ETH_PASSWORD: ${deployer.config['ethpassword']}
                 nucypher_image: ${deployer.config['nucypher_image']}
+                gas_strategy: ${deployer.config['gas_strategy']}
                 blockchain_provider: ${deployer.config['blockchain_provider']}
                 node_is_decentralized: ${deployer.nodes_are_decentralized}
                 %if deployer.config.get('use-prometheus'):
@@ -51,5 +52,8 @@ all:
                   %endif
                   %if node.get('sentry_dsn'):
                   sentry_dsn: ${node['sentry_dsn']}
+                  %endif
+                  %if node.get('gas_strategy'):
+                  gas_strategy: ${node['gas_strategy']}
                   %endif
                 %endfor

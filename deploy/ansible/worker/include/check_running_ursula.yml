@@ -33,7 +33,6 @@
       debug:
         msg:
           "{{status_data.json.nickname}}\n
-          nucypher version:      {{status_data.json.version}}\n
           staker address:        {{status_data.json.staker_address}}\n
           worker address:        {{status_data.json.worker_address}}\n
           rest url:              https://{{status_data.json.rest_url}}\n

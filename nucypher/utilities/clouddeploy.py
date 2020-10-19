@@ -166,6 +166,7 @@ class BaseCloudNodeConfigurator:
         pre_config=False,
         network=None,
         namespace=None,
+        gas_strategy=None,
         ):
 
         self.emitter = emitter
@@ -215,13 +216,16 @@ class BaseCloudNodeConfigurator:
         self.host_level_overrides = {
             'blockchain_provider': blockchain_provider,
             'nucypher_image': nucypher_image,
-            'sentry_dsn': sentry_dsn
+            'sentry_dsn': sentry_dsn,
+            'gas_strategy': f'--gas-strategy {gas_strategy}' if gas_strategy else '',
         }
 
         self.config['blockchain_provider'] = blockchain_provider or self.config.get('blockchain_provider') or f'/root/.local/share/geth/.ethereum/{self.chain_name}/geth.ipc' # the default for nodes that run their own geth container
         self.config['nucypher_image'] = nucypher_image or self.config.get('nucypher_image') or 'nucypher/nucypher:latest'
         self.config['sentry_dsn'] = sentry_dsn or self.config.get('sentry_dsn')
-        self.config['seed_network'] = seed_network or self.config.get('seed_network')
+        self.config['gas_strategy'] = f'--gas-strategy {gas_strategy}' if gas_strategy else self.config.get('gas-strategy', '')
+
+        self.config['seed_network'] = seed_network if seed_network is not None else self.config.get('seed_network')
         if not self.config['seed_network']:
             self.config.pop('seed_node', None)
         self.nodes_are_decentralized = 'geth.ipc' in self.config['blockchain_provider']
@@ -345,6 +349,47 @@ class BaseCloudNodeConfigurator:
 
         executor = PlaybookExecutor(
             playbooks = ['deploy/ansible/worker/setup_remote_workers.yml'],
+            inventory=inventory,
+            variable_manager=variable_manager,
+            loader=loader,
+            passwords=dict(),
+        )
+        executor._tqm._stdout_callback = callback
+        executor.run()
+
+        self.update_captured_instance_data(self.output_capture)
+        self.give_helpful_hints()
+
+
+    def update_nucypher_on_existing_nodes(self, node_names):
+
+        # first update any specified input in our node config
+        for k, input_specified_value in self.host_level_overrides.items():
+            for node_name in node_names:
+                if self.config['instances'].get(node_name):
+                    # if an instance already has a specified value, we only override
+                    # it if that value was input for this command invocation
+                    if input_specified_value:
+                        self.config['instances'][node_name][k] = input_specified_value
+                    elif not self.config['instances'][node_name].get(k):
+                        self.config['instances'][node_name][k] = self.config[k]
+                    self._write_config()
+
+        self.emitter.echo('Running ansible deployment for all running nodes.', color='green')
+
+        self.emitter.echo(f"using inventory file at {self.inventory_path}", color='yellow')
+        if self.config.get('keypair_path'):
+            self.emitter.echo(f"using keypair file at {self.config['keypair_path']}", color='yellow')
+
+        self.generate_ansible_inventory(node_names)
+
+        loader = DataLoader()
+        inventory = InventoryManager(loader=loader, sources=self.inventory_path)
+        callback = AnsiblePlayBookResultsCollector(sock=self.emitter, return_results=self.output_capture)
+        variable_manager = VariableManager(loader=loader, inventory=inventory)
+
+        executor = PlaybookExecutor(
+            playbooks = ['deploy/ansible/worker/update_remote_workers.yml'],
             inventory=inventory,
             variable_manager=variable_manager,
             loader=loader,
