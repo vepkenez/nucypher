@@ -260,6 +260,5 @@ def list_namespaces(general_config, network):
         return
 
     deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, network=network, pre_config={"namespace": None})
-    emitter.echo(f"Listing namespaces in {deployer.network_config_path}")
     for ns in os.listdir(deployer.network_config_path):
         emitter.echo(ns)
