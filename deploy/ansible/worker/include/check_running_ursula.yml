@@ -42,3 +42,13 @@
             ETH:                {{status_data.json.balances.eth}}\n
             NU:                 {{status_data.json.balances.nu}}\n
           {{inventory_hostname}}:worker address:{{status_data.json.worker_address}}\n"
+
+    - name: "Read Ursula Log"
+      become: yes
+      command: docker logs ursula
+      register: ursula_logs
+
+    - name: Print Ursula Status Result
+      debug:
+        msg:
+          "{{ursula_logs['stdout']}}"
