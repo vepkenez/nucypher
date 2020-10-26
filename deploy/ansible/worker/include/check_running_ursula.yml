@@ -22,14 +22,32 @@
         return_content: yes
       register: ip_response
 
+    - name: "Get LogPath"
+      become: yes
+      shell:
+        cmd: docker ps --no-trunc | grep ursula | cut -f 1 -d " "
+      register: ursula_container_name
+
+    - name: "Read Ursula Log"
+      become: yes
+      lineinfile:
+        dest: "/var/lib/docker/containers/{{ursula_container_name['stdout']}}/{{ursula_container_name['stdout']}}-json.log"
+        line: "Working ~ Keep Ursula Online!"
+      check_mode: yes
+      register: serving
+
     - name: "Request Ursula Status"
       become: yes
       uri:
         url: "https://{{ip_response.content}}:9151/status/?json=true"
         validate_certs: no
       register: status_data
+      ignore_errors: yes
+      when: serving
 
     - name: Print Ursula Status Result
+      when: serving and status_data.json
+      ignore_errors: yes
       debug:
         msg:
           "{{status_data.json.nickname}}\n

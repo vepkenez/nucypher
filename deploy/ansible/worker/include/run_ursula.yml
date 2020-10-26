@@ -55,7 +55,7 @@
       environment:
         NUCYPHER_KEYRING_PASSWORD: "{{NUCYPHER_KEYRING_PASSWORD}}"
 
-    - name: Backup Worker Nucypher Keystore locally
+    - name: "Backup Worker Nucypher Keystore locally to: {{deployer_config_path}}/remote_worker_backups/"
       become: yes
       become_user: nucypher
       fetch:
@@ -121,6 +121,15 @@
           NUCYPHER_SENTRY_DSN: "{{SENTRY_DSN | default('')}}"
           NUCYPHER_SENTRY_LOGS: "{{SENTRY_LOGS | default('no')}}"
 
-    - name: "wait a few seconds Ursula to startup"
-      pause:
-        seconds: 15
+    - name: "Get LogPath"
+      become: yes
+      shell:
+        cmd: docker ps --no-trunc | grep ursula | cut -f 1 -d " "
+      register: ursula_container_name
+
+    - name: "Wait until we see that Ursula has decrypted her keyring and gotten started"
+      become: yes
+      wait_for:
+        path: "/var/lib/docker/containers/{{ursula_container_name['stdout']}}/{{ursula_container_name['stdout']}}-json.log"
+        search_regex: "Checking worker settings:"
+        timeout: 30
