@@ -381,6 +381,10 @@ class BaseCloudNodeConfigurator:
         if self.config.get('keypair_path'):
             self.emitter.echo(f"using keypair file at {self.config['keypair_path']}", color='yellow')
 
+        if self.config.get('seed_network') is True and not self.config.get('seed_node'):
+            self.config['seed_node'] = list(self.config['instances'].values())[0]['publicaddress']
+            self._write_config()
+
         self.generate_ansible_inventory(node_names)
 
         loader = DataLoader()

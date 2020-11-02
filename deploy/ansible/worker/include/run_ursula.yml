@@ -77,7 +77,7 @@
           max-file: "5"
         image: "{{ nucypher_image | default('nucypher/nucypher:latest') }}"
         restart_policy: "unless-stopped"
-        command: "nucypher ursula run {{nucypher_ursula_run_options | default('')}} {{signer_options}} --lonely {{prometheus | default('')}} {{gas_strategy | default('')}}"
+        command: "nucypher ursula run {{nucypher_ursula_run_options | default('')}} {{signer_options}} --lonely {{prometheus | default('')}} {{gas_strategy | default('')}} --network {{network_name}}"
         volumes:
           - /home/nucypher:/root/.local/share/
         ports:
@@ -109,7 +109,7 @@
           max-file: "5"
         image: "{{ nucypher_image | default('nucypher/nucypher:latest') }}"
         restart_policy: "unless-stopped"
-        command: "nucypher ursula run {{nucypher_ursula_run_options | default('')}} {{signer_options}} --disable-availability-check {{teacher_options}} {{prometheus | default('')}} {{gas_strategy | default('')}}"
+        command: "nucypher ursula run {{nucypher_ursula_run_options | default('')}} {{signer_options}} --disable-availability-check {{teacher_options}} {{prometheus | default('')}} {{gas_strategy | default('')}} --network {{network_name}}"
         volumes:
           - /home/nucypher:/root/.local/share/
         ports:
@@ -126,6 +126,16 @@
       shell:
         cmd: docker ps --no-trunc | grep ursula | cut -f 1 -d " "
       register: ursula_container_name
+
+    - name: "Read Ursula Log"
+      become: yes
+      command: docker logs ursula
+      register: ursula_logs
+
+    - name: Print Ursula Log Output
+      debug:
+        msg:
+          "{{ursula_logs['stdout']}}"
 
     - name: "Wait until we see that Ursula has decrypted her keyring and gotten started"
       become: yes
