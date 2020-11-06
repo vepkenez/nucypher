@@ -72,9 +72,9 @@
           missing commitments:   {{status_data.json.missing_commitments}}\n
           last committed period: {{status_data.json.last_committed_period}}\n
           ETH:                   {{status_data.json.balances.eth}}\n
-          last log line:         {{ursula_logs['stdout_lines'][-1]}}\n
           ursula docker image:   {{running_docker_image.stdout}}\n
-          ursula command:        {{running_docker_command.stdout}}\n"
+          ursula command:        {{running_docker_command.stdout}}\n
+          last log line:         {{ursula_logs['stdout_lines'][-1]}}\n"
 
 
     - name: Print Last Log Line
