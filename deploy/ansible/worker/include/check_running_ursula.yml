@@ -41,6 +41,16 @@
       command: docker logs ursula
       register: ursula_logs
 
+    - name: "Get Current running Image"
+      become: yes
+      command: sudo docker ps --no-trunc --format \"\{\{.Image\}\}\"
+      register: running_docker_image
+
+    - name: "Get Current running Command"
+      become: yes
+      command: sudo docker ps --no-trunc --format \"\{\{.Command\}\}\"
+      register: running_docker_command
+
     - name: "Request Ursula Status"
       become: yes
       uri:
@@ -51,7 +61,7 @@
       when: serving
 
     - name: Print Ursula Status Result
-      when: serving and status_data.json
+      when: serving and 'json' in status_data
       ignore_errors: yes
       debug:
         msg:
@@ -61,11 +71,11 @@
           rest url:              https://{{status_data.json.rest_url}}\n
           missing commitments:   {{status_data.json.missing_commitments}}\n
           last committed period: {{status_data.json.last_committed_period}}\n
-          balances:\n
-            ETH:                {{status_data.json.balances.eth}}\n
-            NU:                 {{status_data.json.balances.nu}}\n
-          {{inventory_hostname}}:worker address:{{status_data.json.worker_address}}\n
-          last log line: {{ursula_logs['stdout_lines'][-1]}}\n"
+          ETH:                   {{status_data.json.balances.eth}}\n
+          last log line:         {{ursula_logs['stdout_lines'][-1]}}\n
+          ursula docker image:   {{running_docker_image.stdout}}\n
+          ursula command:        {{running_docker_command.stdout}}\n"
+
 
     - name: Print Last Log Line
       when: not serving
