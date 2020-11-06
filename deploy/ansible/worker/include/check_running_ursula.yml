@@ -28,13 +28,18 @@
         cmd: docker ps --no-trunc | grep ursula | cut -f 1 -d " "
       register: ursula_container_name
 
-    - name: "Read Ursula Log"
+    - name: "Wait for Ursula Log"
       become: yes
       lineinfile:
         dest: "/var/lib/docker/containers/{{ursula_container_name['stdout']}}/{{ursula_container_name['stdout']}}-json.log"
         line: "Working ~ Keep Ursula Online!"
       check_mode: yes
       register: serving
+
+    - name: "Read Ursula Log"
+      become: yes
+      command: docker logs ursula
+      register: ursula_logs
 
     - name: "Request Ursula Status"
       become: yes
@@ -59,14 +64,11 @@
           balances:\n
             ETH:                {{status_data.json.balances.eth}}\n
             NU:                 {{status_data.json.balances.nu}}\n
-          {{inventory_hostname}}:worker address:{{status_data.json.worker_address}}\n"
+          {{inventory_hostname}}:worker address:{{status_data.json.worker_address}}\n
+          last log line: {{ursula_logs['stdout_lines'][-1]}}\n"
 
-    - name: "Read Ursula Log"
-      become: yes
-      command: docker logs ursula
-      register: ursula_logs
-
-    - name: Print Ursula Status Result
+    - name: Print Last Log Line
+      when: not serving
       debug:
         msg:
-          "{{ursula_logs['stdout']}}"
+          "last log line: {{ursula_logs['stdout_lines'][-1]}}"
