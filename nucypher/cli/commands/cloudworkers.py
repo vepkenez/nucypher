@@ -262,3 +262,23 @@ def list_namespaces(general_config, network):
     deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, network=network, pre_config={"namespace": None})
     for ns in os.listdir(deployer.network_config_path):
         emitter.echo(ns)
+
+@cloudworkers.command('list-hosts')
+@click.option('--network', help="The network whose hosts you want to see.", type=click.STRING, default='mainnet')
+@click.option('--namespace', help="The network whose hosts you want to see.", type=click.STRING, default='local-stakeholders')
+@click.option('--include-data', help="Print the config data for each node.", is_flag=True, default=False)
+@group_general_config
+def list_hosts(general_config, network, namespace, include_data):
+    """Prints local config info about known hosts"""
+
+    emitter = setup_emitter(general_config)
+    if not CloudDeployers:
+        emitter.echo("Ansible is required to use `nucypher cloudworkers *` commands.  (Please run 'pip install ansible'.)", color="red")
+        return
+
+    deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, network=network, namespace=namespace)
+    for name, data in deployer.get_all_hosts():
+        emitter.echo(name)
+        if include_data:
+            for k, v in data.items():
+                emitter.echo(f"\t{k}: {v}")
