@@ -90,7 +90,7 @@ def up(general_config, staker_options, config_file, cloudprovider, aws_profile, 
 
 @cloudworkers.command('create')
 @click.option('--cloudprovider', help="aws or digitalocean", default='aws')
-@click.option('--aws-profile', help="The cloud provider account profile you'd like to use (an aws profile)", default=None)
+@click.option('--aws-profile', help="The AWS account profile you'd like to use (option not required for DigitalOcean users)", default=None)
 @click.option('--remote-provider', help="The blockchain provider for the remote node, if not provided, nodes will run geth.", default=None)
 @click.option('--nucypher-image', help="The docker image containing the nucypher code to run on the remote nodes. (default is nucypher/nucypher:latest)", default=None)
 @click.option('--seed-network', help="Do you want the 1st node to be --lonely and act as a seed node for this network", default=False, is_flag=True)
@@ -111,7 +111,7 @@ def create(general_config, cloudprovider, aws_profile, remote_provider, nucypher
 
     deployer = CloudDeployers.get_deployer(cloudprovider)(emitter, None, None, remote_provider, nucypher_image, seed_network, sentry_dsn, aws_profile, prometheus, namespace=namespace, network=network)
     if not namespace:
-        emitter.echo("A namespace is required.  It should be something to help remember what these hosts are for or even just today's date.", color="red")
+        emitter.echo("A namespace is required. Choose something to help differentiate between hosts, such as their specific purpose, or even just today's date.", color="red")
         return
     names = [f'{namespace}-{network}-{i}' for i in range(1, count + 1)]
     config = deployer.create_nodes(names, unstaked=True)
@@ -205,7 +205,7 @@ def deploy(general_config, remote_provider, nucypher_image, seed_network, sentry
 
 
 @cloudworkers.command('update')
-@click.option('--remote-provider', help="The blockchain provider for the remote node, if not provided nodes will run geth.", default=None)
+@click.option('--remote-provider', help="The blockchain provider for the remote node – e.g. an Infura endpoint address. If not provided nodes will run geth.", default=None)
 @click.option('--nucypher-image', help="The docker image containing the nucypher code to run on the remote nodes.", default=None)
 @click.option('--seed-network', help="Do you want the 1st node to be --lonely and act as a seed node for this network", default=False, is_flag=True)
 @click.option('--sentry-dsn', help="a sentry dsn for these workers (https://sentry.io/)", default=None)
