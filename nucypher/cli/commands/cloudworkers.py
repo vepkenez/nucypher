@@ -130,7 +130,7 @@ def create(general_config, cloudprovider, aws_profile, remote_provider, nucypher
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
 @group_general_config
 def add(general_config, host_address, login_name, key_path, ssh_port, host_nickname, namespace, network):
-    """Sets an existing node as the host for the given staker address."""
+    """Adds an existing node to the local config for future management."""
 
     emitter = setup_emitter(general_config)
     name = f'{namespace}-{network}-{host_nickname}'
@@ -186,7 +186,7 @@ def add_for_stake(general_config, staker_address, host_address, login_name, key_
 @click.option('--gas-strategy', help="Which gas strategy?  (glacial, slow, medium, fast)", type=click.STRING)
 @group_general_config
 def deploy(general_config, remote_provider, nucypher_image, seed_network, sentry_dsn, wipe, prometheus, namespace, network, gas_strategy):
-    """Deploys NuCypher on existing hardware."""
+    """Deploys NuCypher on managed hosts."""
 
     emitter = setup_emitter(general_config)
 
@@ -215,7 +215,7 @@ def deploy(general_config, remote_provider, nucypher_image, seed_network, sentry
 @click.option('--include-host', 'include_hosts', help="specify hosts to update", multiple=True, type=click.STRING)
 @group_general_config
 def update(general_config, remote_provider, nucypher_image, seed_network, sentry_dsn, wipe, prometheus, namespace, network, gas_strategy, include_hosts):
-    """Deploys NuCypher on existing hardware."""
+    """Updates existing installations of Nucypher on existing managed remote hosts."""
 
     emitter = setup_emitter(general_config)
 
@@ -223,7 +223,11 @@ def update(general_config, remote_provider, nucypher_image, seed_network, sentry
         emitter.echo("Ansible is required to use `nucypher cloudworkers *` commands.  (Please run 'pip install ansible'.)", color="red")
         return
 
-    deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, remote_provider, nucypher_image, seed_network, sentry_dsn, prometheus=prometheus, namespace=namespace, network=network, gas_strategy=gas_strategy)
+    deployer = CloudDeployers.get_deployer('generic')(
+        emitter, None, None, remote_provider, nucypher_image,
+        seed_network, sentry_dsn,
+        prometheus=prometheus, namespace=namespace, network=network, gas_strategy=gas_strategy
+    )
 
     emitter.echo(f"found deploying {nucypher_image} on the following existing hosts:")
 
