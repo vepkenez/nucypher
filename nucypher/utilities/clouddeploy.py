@@ -415,7 +415,6 @@ class BaseCloudNodeConfigurator:
         if self.config.get('keypair_path'):
             self.emitter.echo(f"using keypair file at {self.config['keypair_path']}", color='yellow')
 
-
         self.generate_ansible_inventory(node_names)
 
         loader = DataLoader()
@@ -435,6 +434,28 @@ class BaseCloudNodeConfigurator:
         self.update_captured_instance_data(self.output_capture)
 
         self.give_helpful_hints()
+
+    def backup_remote_data(self, node_names):
+
+        self.generate_ansible_inventory(node_names)
+
+        loader = DataLoader()
+        inventory = InventoryManager(loader=loader, sources=self.inventory_path)
+        callback = AnsiblePlayBookResultsCollector(sock=self.emitter, return_results=self.output_capture)
+        variable_manager = VariableManager(loader=loader, inventory=inventory)
+
+        executor = PlaybookExecutor(
+            playbooks = ['deploy/ansible/worker/backup_remote_workers.yml'],
+            inventory=inventory,
+            variable_manager=variable_manager,
+            loader=loader,
+            passwords=dict(),
+        )
+        executor._tqm._stdout_callback = callback
+        executor.run()
+
+        self.give_helpful_hints()
+
 
     def get_provider_hosts(self):
         return [
