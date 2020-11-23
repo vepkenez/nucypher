@@ -67,7 +67,8 @@
           \tETH:                   {{status_data.json.balances.eth}}\n
           \tursula docker image:   {{running_docker_image.stdout}}\n
           \tursula command:        {{running_docker_command.stdout}}\n
-          \tlast log line:         {{ursula_logs['stdout_lines'][-1]}}\n"
+          \tlast log line:         {{ursula_logs['stdout_lines'][-1]}}\n
+          \tprovider:              {{blockchain_provider}}\n"
 
 
     - name: Print Last Log Line

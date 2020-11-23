@@ -409,7 +409,6 @@ class BaseCloudNodeConfigurator:
     def get_worker_status(self, node_names):
 
         self.emitter.echo('Running ansible status playbook.', color='green')
-        self.emitter.echo('If something goes wrong, it is generally safe to ctrl-c and run the previous command again.')
 
         self.emitter.echo(f"using inventory file at {self.inventory_path}", color='yellow')
         if self.config.get('keypair_path'):
@@ -434,6 +433,36 @@ class BaseCloudNodeConfigurator:
         self.update_captured_instance_data(self.output_capture)
 
         self.give_helpful_hints()
+
+
+    def print_worker_logs(self, node_names):
+
+        self.emitter.echo('Running ansible logs playbook.', color='green')
+
+        self.emitter.echo(f"using inventory file at {self.inventory_path}", color='yellow')
+        if self.config.get('keypair_path'):
+            self.emitter.echo(f"using keypair file at {self.config['keypair_path']}", color='yellow')
+
+        self.generate_ansible_inventory(node_names)
+
+        loader = DataLoader()
+        inventory = InventoryManager(loader=loader, sources=self.inventory_path)
+        callback = AnsiblePlayBookResultsCollector(sock=self.emitter, return_results=self.output_capture)
+        variable_manager = VariableManager(loader=loader, inventory=inventory)
+
+        executor = PlaybookExecutor(
+            playbooks = ['deploy/ansible/worker/get_worker_logs.yml'],
+            inventory=inventory,
+            variable_manager=variable_manager,
+            loader=loader,
+            passwords=dict(),
+        )
+        executor._tqm._stdout_callback = callback
+        executor.run()
+        self.update_captured_instance_data(self.output_capture)
+
+        self.give_helpful_hints()
+
 
     def backup_remote_data(self, node_names):
 

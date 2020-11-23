@@ -242,8 +242,9 @@ def update(general_config, remote_provider, nucypher_image, seed_network, sentry
 @cloudworkers.command('status')
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
+@click.option('--include-host', 'include_hosts', help="Query status on only the named hosts", multiple=True, type=click.STRING)
 @group_general_config
-def status(general_config, namespace, network):
+def status(general_config, namespace, network, include_hosts):
     """Displays worker status and updates worker data in stakeholder config"""
 
     emitter = setup_emitter(general_config)
@@ -252,14 +253,41 @@ def status(general_config, namespace, network):
         return
 
     deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, namespace=namespace, network=network)
-    deployer.get_worker_status(deployer.config['instances'].keys())
+
+    hostnames = deployer.config['instances'].keys()
+    if include_hosts:
+        hostnames = include_hosts
+
+    deployer.get_worker_status(hostnames)
+
+
+@cloudworkers.command('logs')
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
+@click.option('--include-host', 'include_hosts', help="Query status on only the named hosts", multiple=True, type=click.STRING)
+@group_general_config
+def logs(general_config, namespace, network, include_hosts):
+    """Displays worker status and updates worker data in stakeholder config"""
+
+    emitter = setup_emitter(general_config)
+    if not CloudDeployers:
+        emitter.echo("Ansible is required to use `nucypher cloudworkers *` commands.  (Please run 'pip install ansible'.)", color="red")
+        return
+
+    deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, namespace=namespace, network=network)
+
+    hostnames = deployer.config['instances'].keys()
+    if include_hosts:
+        hostnames = include_hosts
+    deployer.print_worker_logs(hostnames)
 
 
 @cloudworkers.command('backup')
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
+@click.option('--include-host', 'include_hosts', help="Query status on only the named hosts", multiple=True, type=click.STRING)
 @group_general_config
-def backup(general_config, namespace, network):
+def backup(general_config, namespace, network, include_hosts):
     """Creates backups of important data from selected remote workers"""
 
     emitter = setup_emitter(general_config)
@@ -268,7 +296,11 @@ def backup(general_config, namespace, network):
         return
 
     deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, namespace=namespace, network=network)
-    deployer.backup_remote_data(deployer.config['instances'].keys())
+
+    hostnames = deployer.config['instances'].keys()
+    if include_hosts:
+        hostnames = include_hosts
+    deployer.backup_remote_data(hostnames)
     emitter.echo("*** Local backups may contain sensitive data. Keep it safe. ***", color="red")
 
 
@@ -291,7 +323,7 @@ def list_namespaces(general_config, network):
 @cloudworkers.command('list-hosts')
 @click.option('--network', help="The network whose hosts you want to see.", type=click.STRING, default='mainnet')
 @click.option('--namespace', help="The network whose hosts you want to see.", type=click.STRING, default='local-stakeholders')
-@click.option('--include-data', help="Print the config data for each node.", is_flag=True, default=False)
+@click.option('--include-data', help="Print the full config data for each node.", is_flag=True, default=False)
 @group_general_config
 def list_hosts(general_config, network, namespace, include_data):
     """Prints local config info about known hosts"""
