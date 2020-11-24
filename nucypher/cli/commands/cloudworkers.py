@@ -329,7 +329,7 @@ def destroy(general_config, cloudprovider, namespace, network, include_hosts):
             return
     deployer = CloudDeployers.get_deployer(cloudprovider)(emitter, None, None, network=network, namespace=namespace)
 
-    hostnames = deployer.get_provider_hosts()
+    hostnames = [name for name, data in deployer.get_provider_hosts()]
     if include_hosts:
         hostnames = include_hosts
 
