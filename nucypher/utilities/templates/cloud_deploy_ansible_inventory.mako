@@ -36,8 +36,9 @@ all:
                 SENTRY_DSN: ${deployer.config['sentry_dsn']}
                 NUCYPHER_SENTRY_LOGS: yes
                 %endif
-                wipe_nucypher_config: ${wipe_nucypher}
+                wipe_nucypher_config: ${extra.get('wipe_nucypher', False)}
                 deployer_config_path: ${deployer.config_dir}
+                restore_path: ${extra.get('restore_path')}
               hosts:
                 %for node in nodes:
                 ${node['publicaddress']}:

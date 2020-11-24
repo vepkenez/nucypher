@@ -34,6 +34,16 @@
         dest: "{{deployer_config_path}}/remote_worker_backups/"
       with_items: "{{keystore_files.files}}"
 
+    - name: "Backup remote worker config files: {{deployer_config_path}}/remote_worker_backups/"
+      become: yes
+      become_user: nucypher
+      fetch:
+        src: "{{item}}"
+        dest: "{{deployer_config_path}}/remote_worker_backups/"
+      with_items:
+        - "/home/nucypher/nucypher/ursula.json"
+        - "{{geth_dir}}account.txt"
+
     - name: "Backup Public Keyrings locally to: {{deployer_config_path}}/remote_worker_backups/"
       become: yes
       # become_user: nucypher

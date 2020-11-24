@@ -1,4 +1,4 @@
-- name: "Get All Worker Status"
+- name: "Backup Remote Worker Data"
   hosts: "{{ play_hosts }}"
   remote_user: "{{default_user}}"
 

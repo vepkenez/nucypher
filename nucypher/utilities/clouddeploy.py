@@ -269,14 +269,13 @@ class BaseCloudNodeConfigurator:
     def inventory_path(self):
         return os.path.join(DEFAULT_CONFIG_ROOT, NODE_CONFIG_STORAGE_KEY, f'{self.namespace_network}.ansible_inventory.yml')
 
-    def generate_ansible_inventory(self, node_names, wipe_nucypher=False):
+    def generate_ansible_inventory(self, node_names, **kwargs):
 
         inventory_content = self._inventory_template.render(
             deployer=self,
             nodes=[value for key, value in self.config['instances'].items() if key in node_names],
-            wipe_nucypher=wipe_nucypher
+            extra=kwargs
         )
-
 
         with open(self.inventory_path, 'w') as outfile:
             outfile.write(inventory_content)
@@ -360,7 +359,7 @@ class BaseCloudNodeConfigurator:
         executor.run()
 
         self.update_captured_instance_data(self.output_capture)
-        self.give_helpful_hints()
+        self.give_helpful_hints(node_names)
 
 
     def update_nucypher_on_existing_nodes(self, node_names):
@@ -405,7 +404,7 @@ class BaseCloudNodeConfigurator:
         executor.run()
 
         self.update_captured_instance_data(self.output_capture)
-        self.give_helpful_hints()
+        self.give_helpful_hints(node_names)
 
 
     def get_worker_status(self, node_names):
@@ -434,7 +433,7 @@ class BaseCloudNodeConfigurator:
         executor.run()
         self.update_captured_instance_data(self.output_capture)
 
-        self.give_helpful_hints()
+        self.give_helpful_hints(node_names)
 
 
     def print_worker_logs(self, node_names):
@@ -463,7 +462,7 @@ class BaseCloudNodeConfigurator:
         executor.run()
         self.update_captured_instance_data(self.output_capture)
 
-        self.give_helpful_hints()
+        self.give_helpful_hints(node_names)
 
 
     def backup_remote_data(self, node_names):
@@ -485,8 +484,27 @@ class BaseCloudNodeConfigurator:
         executor._tqm._stdout_callback = callback
         executor.run()
 
-        self.give_helpful_hints()
+        self.give_helpful_hints(node_names)
 
+    def restore_from_backup(self, target_host, source_path):
+
+        self.generate_ansible_inventory([target_host], restore_path=source_path)
+
+        loader = DataLoader()
+        inventory = InventoryManager(loader=loader, sources=self.inventory_path)
+        callback = AnsiblePlayBookResultsCollector(sock=self.emitter, return_results=self.output_capture)
+        variable_manager = VariableManager(loader=loader, inventory=inventory)
+
+        executor = PlaybookExecutor(
+            playbooks = ['deploy/ansible/worker/restore_ursula_from_backup.yml'],
+            inventory=inventory,
+            variable_manager=variable_manager,
+            loader=loader,
+            passwords=dict(),
+        )
+        executor._tqm._stdout_callback = callback
+        executor.run()
+        self.give_helpful_hints([target_host])
 
     def get_provider_hosts(self):
         return [
@@ -532,9 +550,9 @@ class BaseCloudNodeConfigurator:
         with open(self.config['stakeholder_config_file'], 'w') as outfile:
             json.dump(data, outfile, indent=4)
 
-    def give_helpful_hints(self):
+    def give_helpful_hints(self, node_names):
         self.emitter.echo("You may wish to ssh into your running hosts:")
-        for node_name, host_data in self.get_all_hosts():
+        for node_name, host_data in [h for h in self.get_all_hosts() if h[0] in node_names]:
             dep = CloudDeployers.get_deployer(host_data['provider'])(
                 self.emitter,
                 self.stakeholder,

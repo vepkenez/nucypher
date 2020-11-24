@@ -57,7 +57,7 @@ def cloudworkers():
 @click.option('--include-stakeholder', 'stakes', help="limit worker to specified stakeholder addresses", multiple=True)
 @click.option('--wipe', help="Clear nucypher configs on existing nodes and start a fresh node with new keys.", default=False, is_flag=True)
 @click.option('--prometheus', help="Run Prometheus on workers.", default=False, is_flag=True)
-@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default='local-stakeholders')
 @group_general_config
 def up(general_config, staker_options, config_file, cloudprovider, aws_profile, remote_provider, nucypher_image, seed_network, sentry_dsn, stakes, wipe, prometheus, namespace):
     """Creates workers for all stakes owned by the user for the given network."""
@@ -96,7 +96,7 @@ def up(general_config, staker_options, config_file, cloudprovider, aws_profile, 
 @click.option('--sentry-dsn', help="a sentry dsn for these workers (https://sentry.io/)", default=None)
 @click.option('--prometheus', help="Run Prometheus on workers.", default=False, is_flag=True)
 @click.option('--count', help="Create this many nodes.", type=click.INT, default=1)
-@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default='local-stakeholders')
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
 @group_general_config
 def create(general_config, cloudprovider, aws_profile, remote_provider, nucypher_image, seed_network, sentry_dsn, prometheus, count, namespace, network):
@@ -126,7 +126,7 @@ def create(general_config, cloudprovider, aws_profile, remote_provider, nucypher
 @click.option('--key-path', help="The path to a keypair we will need to ssh into this host", default="~/.ssh/id_rsa.pub")
 @click.option('--ssh-port', help="The port this host's ssh daemon is listening on", default=22)
 @click.option('--host-nickname', help="A nickname to remember this host by", type=click.STRING, required=True)
-@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, required=True)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, required=True, default='local-stakeholders')
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
 @group_general_config
 def add(general_config, host_address, login_name, key_path, ssh_port, host_nickname, namespace, network):
@@ -148,7 +148,7 @@ def add(general_config, host_address, login_name, key_path, ssh_port, host_nickn
 @click.option('--login-name', help="The name username of a user with root privileges we can ssh as on the host.", required=True)
 @click.option('--key-path', help="The path to a keypair we will need to ssh into this host", default="~/.ssh/id_rsa.pub")
 @click.option('--ssh-port', help="The port this host's ssh daemon is listening on", default=22)
-@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default='local-stakeholders')
 @group_general_config
 def add_for_stake(general_config, staker_address, host_address, login_name, key_path, ssh_port, namespace):
     """Sets an existing node as the host for the given staker address."""
@@ -181,7 +181,7 @@ def add_for_stake(general_config, staker_address, host_address, login_name, key_
 @click.option('--sentry-dsn', help="a sentry dsn for these workers (https://sentry.io/)", default=None)
 @click.option('--wipe', help="Clear your nucypher config and start a fresh node with new keys", default=False, is_flag=True)
 @click.option('--prometheus', help="Run Prometheus on workers.", default=False, is_flag=True)
-@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default='local-stakeholders')
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
 @click.option('--gas-strategy', help="Which gas strategy?  (glacial, slow, medium, fast)", type=click.STRING)
 @group_general_config
@@ -209,7 +209,7 @@ def deploy(general_config, remote_provider, nucypher_image, seed_network, sentry
 @click.option('--sentry-dsn', help="a sentry dsn for these workers (https://sentry.io/)", default=None)
 @click.option('--wipe', help="Clear your nucypher config and start a fresh node with new keys", default=False, is_flag=True)
 @click.option('--prometheus', help="Run Prometheus on workers.", default=False, is_flag=True)
-@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default='local-stakeholders')
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
 @click.option('--gas-strategy', help="Which gas strategy?  (glacial, slow, medium, fast)", type=click.STRING)
 @click.option('--include-host', 'include_hosts', help="specify hosts to update", multiple=True, type=click.STRING)
@@ -240,7 +240,7 @@ def update(general_config, remote_provider, nucypher_image, seed_network, sentry
 
 
 @cloudworkers.command('status')
-@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default='local-stakeholders')
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
 @click.option('--include-host', 'include_hosts', help="Query status on only the named hosts", multiple=True, type=click.STRING)
 @group_general_config
@@ -262,7 +262,7 @@ def status(general_config, namespace, network, include_hosts):
 
 
 @cloudworkers.command('logs')
-@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default='local-stakeholders')
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
 @click.option('--include-host', 'include_hosts', help="Query status on only the named hosts", multiple=True, type=click.STRING)
 @group_general_config
@@ -283,7 +283,7 @@ def logs(general_config, namespace, network, include_hosts):
 
 
 @cloudworkers.command('backup')
-@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default='local-stakeholders')
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
 @click.option('--include-host', 'include_hosts', help="Query status on only the named hosts", multiple=True, type=click.STRING)
 @group_general_config
@@ -306,7 +306,7 @@ def backup(general_config, namespace, network, include_hosts):
 
 @cloudworkers.command('destroy')
 @click.option('--cloudprovider', help="aws or digitalocean")
-@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default='local-stakeholders')
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
 @click.option('--include-host', 'include_hosts', help="Query status on only the named hosts", multiple=True, type=click.STRING)
 @group_general_config
@@ -372,3 +372,22 @@ def list_hosts(general_config, network, namespace, include_data):
         if include_data:
             for k, v in data.items():
                 emitter.echo(f"\t{k}: {v}")
+
+
+@cloudworkers.command('restore')
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default='local-stakeholders')
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
+@click.option('--target-host', 'target_host', help="The nickname managed host where we are putting the restored state.", multiple=False, type=click.STRING)
+@click.option('--source-path', 'source_path', help="The absolute path to the backup data you are restoring", type=click.STRING, required=True)
+@group_general_config
+def restore(general_config, namespace, network, target_host, source_path):
+    """Restores a backup of a worker to a running host"""
+
+    emitter = setup_emitter(general_config)
+    if not CloudDeployers:
+        emitter.echo("Ansible is required to use `nucypher cloudworkers *` commands.  (Please run 'pip install ansible'.)", color="red")
+        return
+
+    deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, namespace=namespace, network=network)
+
+    deployer.restore_from_backup(target_host, source_path)
