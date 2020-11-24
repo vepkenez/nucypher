@@ -204,8 +204,6 @@ class BaseCloudNodeConfigurator:
                 "keyringpassword": b64encode(os.urandom(64)).decode('utf-8'),
                 "ethpassword": b64encode(os.urandom(64)).decode('utf-8'),
             }
-            configdir = os.path.dirname(self.config_path)
-            os.makedirs(configdir, exist_ok=True)
 
         # configure provider specific attributes
         self._configure_provider_params(profile)
@@ -235,6 +233,10 @@ class BaseCloudNodeConfigurator:
         self._write_config()
 
     def _write_config(self):
+
+        configdir = os.path.dirname(self.config_path)
+        os.makedirs(configdir, exist_ok=True)
+
         with open(self.config_path, 'w') as outfile:
             json.dump(self.config, outfile, indent=4)
 
@@ -418,7 +420,7 @@ class BaseCloudNodeConfigurator:
 
         loader = DataLoader()
         inventory = InventoryManager(loader=loader, sources=self.inventory_path)
-        callback = AnsiblePlayBookResultsCollector(sock=self.emitter, return_results=self.output_capture, filter_output=["Print Ursula Status Result"])
+        callback = AnsiblePlayBookResultsCollector(sock=self.emitter, return_results=self.output_capture, filter_output=["Print Ursula Status Result", "Print Last Log Line"])
         variable_manager = VariableManager(loader=loader, inventory=inventory)
 
         executor = PlaybookExecutor(
@@ -495,9 +497,9 @@ class BaseCloudNodeConfigurator:
     def get_all_hosts(self):
         return [(node_name, host_data) for node_name, host_data in self.config['instances'].items()]
 
-    def destroy_resources(self, node_names=None):
-        node_names = [s for s in node_names if s in self.get_provider_hosts()]
-        self.emitter.echo(f"Destroying all {self.provider_name} instances for node_names: {' '.join(node_names)}")
+    def destroy_resources(self, node_names):
+        node_names = [s for s in node_names if s in [names for names, data in self.get_provider_hosts()]]
+        self.emitter.echo(f"Destroying {self.provider_name} instances for nodes: {' '.join(node_names)}")
         if self._destroy_resources(node_names):
             self.emitter.echo(f"deleted all requested resources for {self.provider_name}.  We are clean.  No money is being spent.", color="green")
 
@@ -693,7 +695,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
             import boto3
         except ImportError:
             self.emitter.echo("You need to have boto3 installed to use this feature (pip3 install boto3)", color='red')
-            raise AttributeError("boto3 not found.")
+            raise AttributeError("You need to have boto3 installed to use this feature (pip3 install boto3).")
         # figure out which AWS account to use.
 
         # find aws profiles on user's local environment
@@ -706,7 +708,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
         self.emitter.echo(f'using profile: {self.profile}')
         if self.profile in profiles:
 
-            self.AWS_REGION = os.getenv('AWS_DEFAULT_REGION') or 'us-east-1'
+            self.AWS_REGION = self.config.get('aws-region') or os.getenv('AWS_DEFAULT_REGION') or 'us-east-1'
             self.emitter.echo(f"Using AWS Region: {self.AWS_REGION}.  Override this by setting AWS_DEFAULT_REGION")
             self.session = boto3.Session(profile_name=self.profile, region_name=self.AWS_REGION)
             self.ec2Client = self.session.client('ec2')
@@ -841,7 +843,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
             self.emitter.echo("You need to have boto3 installed to use this feature (pip3 install boto3)")
             return
 
-        existing_instances = copy.copy(self.config.get('instances'))
+        existing_instances = {k: v for k, v in self.config.get('instances', {}).items() if k in node_names}
         vpc = self.ec2Resource.Vpc(self.config['Vpc'])
         if existing_instances:
             for node_name, instance in existing_instances.items():
@@ -945,6 +947,13 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
 class GenericConfigurator(BaseCloudNodeConfigurator):
 
     provider_name = 'generic'
+
+    def _write_config(self):
+        if not os.path.exists(self.config_path):
+            raise AttributeError(f"Namespace/config '{self.namespace}' does not exist in non 'create' operation.  Show existing namespaces: `nucypher cloudworkers list-namespaces`")
+
+        super()._write_config()
+
 
     def create_nodes(self, node_names, host_address, login_name, key_path, ssh_port):
 

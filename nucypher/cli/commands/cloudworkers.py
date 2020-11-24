@@ -304,6 +304,39 @@ def backup(general_config, namespace, network, include_hosts):
     emitter.echo("*** Local backups may contain sensitive data. Keep it safe. ***", color="red")
 
 
+@cloudworkers.command('destroy')
+@click.option('--cloudprovider', help="aws or digitalocean")
+@click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING)
+@click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
+@click.option('--include-host', 'include_hosts', help="Query status on only the named hosts", multiple=True, type=click.STRING)
+@group_general_config
+def destroy(general_config, cloudprovider, namespace, network, include_hosts):
+    """Cleans up all previously created resources for the given netork for the cloud providern"""
+
+    emitter = setup_emitter(general_config)
+    if not CloudDeployers:
+        emitter.echo("Ansible is required to use many `nucypher cloudworkers *` commands.  (Please run 'pip install ansible'.)", color="red")
+        return
+
+    if not cloudprovider:
+        hosts = CloudDeployers.get_deployer('generic')(emitter, None, None, network=network, namespace=namespace).get_all_hosts()
+        if len(set(host['provider'] for address, host in hosts)) == 1: # check if there are hosts in this namespace
+            cloudprovider = hosts[0][1]['provider']
+        else:
+            emitter.echo("Found hosts from multiple cloudproviders.")
+            emitter.echo("We can only destroy hosts from one cloudprovider at a time.")
+            emitter.echo("Please specify which provider's hosts you'd like to destroy using --cloudprovider (digitalocean or aws)")
+            return
+    deployer = CloudDeployers.get_deployer(cloudprovider)(emitter, None, None, network=network, namespace=namespace)
+
+    hostnames = deployer.get_provider_hosts()
+    if include_hosts:
+        hostnames = include_hosts
+
+    deployer.destroy_resources(hostnames)
+
+
+
 @cloudworkers.command('list-namespaces')
 @click.option('--network', help="The network whose namespaces you want to see.", type=click.STRING, default='mainnet')
 @group_general_config

@@ -4,11 +4,6 @@
   gather_facts: no
   tasks:
 
-    - name: find keystore file
-      find:
-        paths: "{{geth_dir}}keystore"
-      register: keystore_output
-
     - name: Get public ip
       uri:
         url: http://ifconfig.me/ip
@@ -72,7 +67,7 @@
 
 
     - name: Print Last Log Line
-      when: not serving
+      when: not 'json' in status_data
       debug:
         msg:
           "last log line: {{ursula_logs['stdout_lines'][-1]}}"
