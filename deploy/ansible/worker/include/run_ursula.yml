@@ -77,7 +77,7 @@
           max-file: "5"
         image: "{{ nucypher_image | default('nucypher/nucypher:latest') }}"
         restart_policy: "unless-stopped"
-        command: "nucypher ursula run {{nucypher_ursula_run_options | default('')}} {{signer_options}} --lonely {{prometheus | default('')}} {{gas_strategy | default('')}} --network {{network_name}}"
+        command: "nucypher ursula run {{nucypher_ursula_run_options | default('')}} --lonely {{prometheus | default('')}} {{gas_strategy | default('')}} --network {{network_name}}"
         volumes:
           - /home/nucypher:/root/.local/share/
         ports:
@@ -109,7 +109,7 @@
           max-file: "5"
         image: "{{ nucypher_image | default('nucypher/nucypher:latest') }}"
         restart_policy: "unless-stopped"
-        command: "nucypher ursula run {{nucypher_ursula_run_options | default('')}} {{signer_options}} --disable-availability-check {{teacher_options}} {{prometheus | default('')}} {{gas_strategy | default('')}} --network {{network_name}}"
+        command: "nucypher ursula run {{nucypher_ursula_run_options | default('')}} --disable-availability-check {{teacher_options}} {{prometheus | default('')}} {{gas_strategy | default('')}} --network {{network_name}}"
         volumes:
           - /home/nucypher:/root/.local/share/
         ports:

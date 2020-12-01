@@ -48,26 +48,19 @@
       ignore_errors: yes
       when: serving
 
-    - name: Print Ursula Status Result
-      when: serving and 'json' in status_data
-      ignore_errors: yes
+    - name: Print Ursula Status Data
+      ignore_errors: no
       debug:
         msg:
-          "nickname: {{status_data.json.nickname}}\n
+          "local nickname: {{host_nickname}}\n
+          {% if serving and 'json' in status_data %}nickname: {{status_data.json.nickname}}\n
           staker address:          {{status_data.json.staker_address}}\n
           worker address:          {{status_data.json.worker_address}}\n
           rest url:                https://{{status_data.json.rest_url}}\n
           \tmissing commitments:   {{status_data.json.missing_commitments}}\n
           \tlast committed period: {{status_data.json.last_committed_period}}\n
-          \tETH:                   {{status_data.json.balances.eth}}\n
+          \tETH:                   {{status_data.json.balances.eth}}\n{% endif %}
+          \tprovider:              {{blockchain_provider}}\n
           \tursula docker image:   {{running_docker_image.stdout}}\n
           \tursula command:        {{running_docker_command.stdout}}\n
-          \tlast log line:         {{ursula_logs['stdout_lines'][-1]}}\n
-          \tprovider:              {{blockchain_provider}}\n"
-
-
-    - name: Print Last Log Line
-      when: not 'json' in status_data
-      debug:
-        msg:
-          "last log line: {{ursula_logs['stdout_lines'][-1]}}"
+          \tlast log line:         {{ursula_logs['stdout_lines'][-1]}}\n"

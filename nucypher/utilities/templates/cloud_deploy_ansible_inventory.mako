@@ -42,6 +42,7 @@ all:
               hosts:
                 %for node in nodes:
                 ${node['publicaddress']}:
+                  host_nickname: ${node['host_nickname']}
                   %for attr in node['provider_deploy_attrs']:
                   ${attr['key']}: ${attr['value']}
                   %endfor

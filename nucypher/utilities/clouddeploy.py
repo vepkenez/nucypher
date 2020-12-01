@@ -67,6 +67,8 @@ class AnsiblePlayBookResultsCollector(CallbackBase):
         self.filter_output = filter_output
 
     def v2_playbook_on_play_start(self, play):
+        if self.filter_output is not None:
+            return
         name = play.get_name().strip()
         if not name:
             msg = '\nPLAY {}\n'.format('*' * 100)
@@ -76,7 +78,9 @@ class AnsiblePlayBookResultsCollector(CallbackBase):
 
     def v2_playbook_on_task_start(self, task, is_conditional):
 
-        if self.filter_output is not None and not task.get_name() in self.filter_output:
+        if self.filter_output is not None:
+            return
+        if task.get_name() == 'Gathering Facts':
             return
 
         msg = '\nTASK [{}] {}\n'.format(task.get_name(), '*' * 100)
@@ -88,15 +92,16 @@ class AnsiblePlayBookResultsCollector(CallbackBase):
         if self.filter_output is not None and not task_name in self.filter_output:
             return
 
-        if result.is_changed():
-            data = '[{}]=> changed'.format(result._host.name)
-        else:
-            data = '[{}]=> ok'.format(result._host.name)
-        self.send_save(data, color='yellow' if result.is_changed() else 'green')
+        if self.filter_output is None:
+            if result.is_changed():
+                data = '[{}]=> changed'.format(result._host.name)
+            else:
+                data = '[{}]=> ok'.format(result._host.name)
+            self.send_save(data, color='yellow' if result.is_changed() else 'green')
         if 'msg' in result._task_fields['args']:
-            msg = result._task_fields['args']['msg']
-            self.send_save(msg, color='yellow',)
             self.send_save('\n')
+            msg = result._task_fields['args']['msg']
+            self.send_save(msg, color='white',)
             if self.results:
                 for k in self.results.keys():
                     regex = fr'{k}:\s*(?P<data>.*)'
@@ -106,6 +111,8 @@ class AnsiblePlayBookResultsCollector(CallbackBase):
 
 
     def v2_runner_on_failed(self, result, *args, **kwargs):
+        if self.filter_output is not None:
+            return
         if 'changed' in result._result:
             del result._result['changed']
         data = 'fail: [{}]=> {}: {}'.format(
@@ -125,6 +132,8 @@ class AnsiblePlayBookResultsCollector(CallbackBase):
         self.send_save(data)
 
     def v2_runner_on_skipped(self, result):
+        if self.filter_output is not None:
+            return
         if 'changed' in result._result:
             del result._result['changed']
         data = '[{}]=> {}: {}'.format(
@@ -135,6 +144,8 @@ class AnsiblePlayBookResultsCollector(CallbackBase):
         self.send_save(data, color='blue')
 
     def v2_playbook_on_stats(self, stats):
+        if self.filter_output is not None:
+            return
         hosts = sorted(stats.processed.keys())
         data = '\nPLAY RECAP {}\n'.format('*' * 100)
         self.send_save(data)
@@ -230,6 +241,12 @@ class BaseCloudNodeConfigurator:
         self.config['stakeholder_config_file'] = stakeholder_config_path
         self.config['use-prometheus'] = prometheus
         self.emitter.echo(f'using config file: "{self.config_path}"')
+
+        # add instance key as host_nickname for use in inventory
+        if self.config.get('instances'):
+            for k, v in self.config['instances'].items():
+                self.config['instances'][k]['host_nickname'] = k
+
         self._write_config()
 
     def _write_config(self):
@@ -414,12 +431,13 @@ class BaseCloudNodeConfigurator:
         self.emitter.echo(f"using inventory file at {self.inventory_path}", color='yellow')
         if self.config.get('keypair_path'):
             self.emitter.echo(f"using keypair file at {self.config['keypair_path']}", color='yellow')
+        self.emitter.echo("ansible-playbook")
 
         self.generate_ansible_inventory(node_names)
 
         loader = DataLoader()
         inventory = InventoryManager(loader=loader, sources=self.inventory_path)
-        callback = AnsiblePlayBookResultsCollector(sock=self.emitter, return_results=self.output_capture, filter_output=["Print Ursula Status Result", "Print Last Log Line"])
+        callback = AnsiblePlayBookResultsCollector(sock=self.emitter, return_results=self.output_capture, filter_output=["Print Ursula Status Data", "Print Last Log Line"])
         variable_manager = VariableManager(loader=loader, inventory=inventory)
 
         executor = PlaybookExecutor(
@@ -590,10 +608,8 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
         if not self.token:
             self.emitter.echo(f"Please `export DIGITALOCEAN_ACCESS_TOKEN=<your access token.>` from here:  https://cloud.digitalocean.com/account/api/tokens", color="red")
             raise AttributeError("Could not continue without DIGITALOCEAN_ACCESS_TOKEN environment variable.")
-        self.region = os.getenv('DIGITALOCEAN_REGION') or self.config.get('region')
-        if not self.region:
-            self.region = self.default_region
-        self.config['region'] = self.region
+        self.region = os.getenv('DIGITALOCEAN_REGION') or self.config.get('digital-ocean-region') or self.default_region
+
         self.emitter.echo(f'using DigitalOcean region: {self.region}, to change regions `export DIGITALOCEAN_REGION: https://www.digitalocean.com/docs/platform/availability-matrix/', color='yellow')
 
         self.sshkey = os.getenv('DIGITAL_OCEAN_KEY_FINGERPRINT') or self.config.get('sshkey')
@@ -602,6 +618,7 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
             self.emitter.echo("it should look like `DIGITAL_OCEAN_KEY_FINGERPRINT=88:fb:53:51:09:aa:af:02:e2:99:95:2d:39:64:c1:64`", color="red")
             raise AttributeError("Could not continue without DIGITAL_OCEAN_KEY_FINGERPRINT environment variable.")
         self.config['sshkey'] = self.sshkey
+        self.config['digital-ocean-region'] = self.region
 
         self._write_config()
 
@@ -713,8 +730,8 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
         try:
             import boto3
         except ImportError:
-            self.emitter.echo("You need to have boto3 installed to use this feature (pip3 install boto3)", color='red')
-            raise AttributeError("You need to have boto3 installed to use this feature (pip3 install boto3).")
+            self.emitter.echo("You need to have boto3 installed to use this feature (pip install boto3)", color='red')
+            raise AttributeError("You need to have boto3 installed to use this feature (pip install boto3).")
         # figure out which AWS account to use.
 
         # find aws profiles on user's local environment
@@ -726,9 +743,9 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
             raise AttributeError("AWS profile not configured.")
         self.emitter.echo(f'using profile: {self.profile}')
         if self.profile in profiles:
-
             self.AWS_REGION = self.config.get('aws-region') or os.getenv('AWS_DEFAULT_REGION') or 'us-east-1'
-            self.emitter.echo(f"Using AWS Region: {self.AWS_REGION}.  Override this by setting AWS_DEFAULT_REGION")
+            if not self.config.get('aws-region') or os.getenv('AWS_DEFAULT_REGION'):
+                self.emitter.echo(f"Using AWS Region: {self.AWS_REGION}.  Override this by setting environment variable: AWS_DEFAULT_REGION", color='yellow')
             self.session = boto3.Session(profile_name=self.profile, region_name=self.AWS_REGION)
             self.ec2Client = self.session.client('ec2')
             self.ec2Resource = self.session.resource('ec2')
@@ -746,6 +763,8 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
             self.config['keypair_path'] = keypair_path
 
         self.config['keypair'] = self.keypair
+        self.config['aws-region'] = self.AWS_REGION
+        self._write_config()
 
     @property
     def aws_tags(self):
@@ -872,6 +891,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
                 time.sleep(3)
                 self.ec2Resource.Instance(instance['InstanceId']).terminate()
                 del self.config['instances'][node_name]
+                self.emitter.echo(f"\tdestroyed instance for {node_name}")
                 self._write_config()
 
         if not len(self.get_provider_hosts()):
@@ -969,7 +989,7 @@ class GenericConfigurator(BaseCloudNodeConfigurator):
 
     def _write_config(self):
         if not os.path.exists(self.config_path):
-            raise AttributeError(f"Namespace/config '{self.namespace}' does not exist in non 'create' operation.  Show existing namespaces: `nucypher cloudworkers list-namespaces`")
+            raise AttributeError(f"Namespace/config '{self.namespace}' does not exist. Show existing namespaces: `nucypher cloudworkers list-namespaces` or create a namespace: `nucypher cloudworkers create`")
 
         super()._write_config()
 
