@@ -1,3 +1,5 @@
+- import_playbook: include/setup_user.yml
+- import_playbook: include/setup_docker.yml
 - import_playbook: include/stop_containers.yml
 
 - name: "Restore from local backup of remote Ursula data"
@@ -84,7 +86,6 @@
         dest: "{{geth_dir}}account.txt"
         owner: "nucypher"
         mode: 0600
-
 
 - import_playbook: include/update_existing_ursula.yml
 - import_playbook: include/check_running_ursula.yml

@@ -317,12 +317,14 @@ class BaseCloudNodeConfigurator:
                 self.emitter.echo(f'creating new node for {node_name}', color='yellow')
                 time.sleep(3)
                 node_data = self.create_new_node(node_name)
+                node_data['host_nickname'] = node_name
                 node_data['provider'] = self.provider_name
                 self.config['instances'][node_name] = node_data
                 if self.config['seed_network'] and not self.config.get('seed_node'):
                     self.config['seed_node'] = node_data['publicaddress']
                 self._write_config()
                 self.created_new_nodes = True
+
 
         return self.config
 

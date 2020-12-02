@@ -112,7 +112,14 @@ def create(general_config, cloudprovider, aws_profile, remote_provider, nucypher
     if not namespace:
         emitter.echo("A namespace is required. Choose something to help differentiate between hosts, such as their specific purpose, or even just today's date.", color="red")
         return
-    names = [f'{namespace}-{network}-{i}' for i in range(1, count + 1)]
+
+    names = []
+    i = 1
+    while len(names) < count:
+        name = f'{namespace}-{network}-{i}'
+        if name not in deployer.config.get('instances', {}):
+            names.append(name)
+        i += 1
     config = deployer.create_nodes(names, unstaked=True)
 
     if config.get('instances') and len(config.get('instances')) >= count:
