@@ -240,7 +240,6 @@ class BaseCloudNodeConfigurator:
         self.nodes_are_decentralized = 'geth.ipc' in self.config['blockchain_provider']
         self.config['stakeholder_config_file'] = stakeholder_config_path
         self.config['use-prometheus'] = prometheus
-        self.emitter.echo(f'using config file: "{self.config_path}"')
 
         # add instance key as host_nickname for use in inventory
         if self.config.get('instances'):
@@ -335,6 +334,8 @@ class BaseCloudNodeConfigurator:
 
     def deploy_nucypher_on_existing_nodes(self, node_names, wipe_nucypher=False):
 
+        playbook = 'deploy/ansible/worker/setup_remote_workers.yml'
+
         # first update any specified input in our node config
         for k, input_specified_value in self.host_level_overrides.items():
             for node_name in node_names:
@@ -356,10 +357,6 @@ class BaseCloudNodeConfigurator:
             self.config['seed_node'] = list(self.config['instances'].values())[0]['publicaddress']
             self._write_config()
 
-        self.emitter.echo(f"using inventory file at {self.inventory_path}", color='yellow')
-        if self.config.get('keypair_path'):
-            self.emitter.echo(f"using keypair file at {self.config['keypair_path']}", color='yellow')
-
         self.generate_ansible_inventory(node_names, wipe_nucypher=wipe_nucypher)
 
         loader = DataLoader()
@@ -368,7 +365,7 @@ class BaseCloudNodeConfigurator:
         variable_manager = VariableManager(loader=loader, inventory=inventory)
 
         executor = PlaybookExecutor(
-            playbooks = ['deploy/ansible/worker/setup_remote_workers.yml'],
+            playbooks = [playbook],
             inventory=inventory,
             variable_manager=variable_manager,
             loader=loader,
@@ -378,10 +375,12 @@ class BaseCloudNodeConfigurator:
         executor.run()
 
         self.update_captured_instance_data(self.output_capture)
-        self.give_helpful_hints(node_names)
+        self.give_helpful_hints(node_names, backup=True, playbook=playbook)
 
 
     def update_nucypher_on_existing_nodes(self, node_names):
+
+        playbook = 'deploy/ansible/worker/update_remote_workers.yml'
 
         # first update any specified input in our node config
         for k, input_specified_value in self.host_level_overrides.items():
@@ -395,12 +394,6 @@ class BaseCloudNodeConfigurator:
                         self.config['instances'][node_name][k] = self.config[k]
                     self._write_config()
 
-        self.emitter.echo('Running ansible deployment for all running nodes.', color='green')
-
-        self.emitter.echo(f"using inventory file at {self.inventory_path}", color='yellow')
-        if self.config.get('keypair_path'):
-            self.emitter.echo(f"using keypair file at {self.config['keypair_path']}", color='yellow')
-
         if self.config.get('seed_network') is True and not self.config.get('seed_node'):
             self.config['seed_node'] = list(self.config['instances'].values())[0]['publicaddress']
             self._write_config()
@@ -413,7 +406,7 @@ class BaseCloudNodeConfigurator:
         variable_manager = VariableManager(loader=loader, inventory=inventory)
 
         executor = PlaybookExecutor(
-            playbooks = ['deploy/ansible/worker/update_remote_workers.yml'],
+            playbooks = [playbook],
             inventory=inventory,
             variable_manager=variable_manager,
             loader=loader,
@@ -423,17 +416,12 @@ class BaseCloudNodeConfigurator:
         executor.run()
 
         self.update_captured_instance_data(self.output_capture)
-        self.give_helpful_hints(node_names)
+        self.give_helpful_hints(node_names, backup=True, playbook=playbook)
 
 
     def get_worker_status(self, node_names):
 
-        self.emitter.echo('Running ansible status playbook.', color='green')
-
-        self.emitter.echo(f"using inventory file at {self.inventory_path}", color='yellow')
-        if self.config.get('keypair_path'):
-            self.emitter.echo(f"using keypair file at {self.config['keypair_path']}", color='yellow')
-        self.emitter.echo("ansible-playbook")
+        playbook = 'deploy/ansible/worker/get_workers_status.yml'
 
         self.generate_ansible_inventory(node_names)
 
@@ -443,7 +431,7 @@ class BaseCloudNodeConfigurator:
         variable_manager = VariableManager(loader=loader, inventory=inventory)
 
         executor = PlaybookExecutor(
-            playbooks = ['deploy/ansible/worker/get_workers_status.yml'],
+            playbooks = [playbook],
             inventory=inventory,
             variable_manager=variable_manager,
             loader=loader,
@@ -453,16 +441,12 @@ class BaseCloudNodeConfigurator:
         executor.run()
         self.update_captured_instance_data(self.output_capture)
 
-        self.give_helpful_hints(node_names)
+        self.give_helpful_hints(node_names, playbook=playbook)
 
 
     def print_worker_logs(self, node_names):
 
-        self.emitter.echo('Running ansible logs playbook.', color='green')
-
-        self.emitter.echo(f"using inventory file at {self.inventory_path}", color='yellow')
-        if self.config.get('keypair_path'):
-            self.emitter.echo(f"using keypair file at {self.config['keypair_path']}", color='yellow')
+        playbook = 'deploy/ansible/worker/get_worker_logs.yml'
 
         self.generate_ansible_inventory(node_names)
 
@@ -472,7 +456,7 @@ class BaseCloudNodeConfigurator:
         variable_manager = VariableManager(loader=loader, inventory=inventory)
 
         executor = PlaybookExecutor(
-            playbooks = ['deploy/ansible/worker/get_worker_logs.yml'],
+            playbooks = [playbook],
             inventory=inventory,
             variable_manager=variable_manager,
             loader=loader,
@@ -482,11 +466,12 @@ class BaseCloudNodeConfigurator:
         executor.run()
         self.update_captured_instance_data(self.output_capture)
 
-        self.give_helpful_hints(node_names)
+        self.give_helpful_hints(node_names, playbook=playbook)
 
 
     def backup_remote_data(self, node_names):
 
+        playbook = 'deploy/ansible/worker/backup_remote_workers.yml'
         self.generate_ansible_inventory(node_names)
 
         loader = DataLoader()
@@ -495,7 +480,7 @@ class BaseCloudNodeConfigurator:
         variable_manager = VariableManager(loader=loader, inventory=inventory)
 
         executor = PlaybookExecutor(
-            playbooks = ['deploy/ansible/worker/backup_remote_workers.yml'],
+            playbooks = [playbook],
             inventory=inventory,
             variable_manager=variable_manager,
             loader=loader,
@@ -504,9 +489,11 @@ class BaseCloudNodeConfigurator:
         executor._tqm._stdout_callback = callback
         executor.run()
 
-        self.give_helpful_hints(node_names)
+        self.give_helpful_hints(node_names, backup=True, playbook=playbook)
 
     def restore_from_backup(self, target_host, source_path):
+
+        playbook = 'deploy/ansible/worker/restore_ursula_from_backup.yml'
 
         self.generate_ansible_inventory([target_host], restore_path=source_path)
 
@@ -516,7 +503,7 @@ class BaseCloudNodeConfigurator:
         variable_manager = VariableManager(loader=loader, inventory=inventory)
 
         executor = PlaybookExecutor(
-            playbooks = ['deploy/ansible/worker/restore_ursula_from_backup.yml'],
+            playbooks = [playbook],
             inventory=inventory,
             variable_manager=variable_manager,
             loader=loader,
@@ -524,7 +511,7 @@ class BaseCloudNodeConfigurator:
         )
         executor._tqm._stdout_callback = callback
         executor.run()
-        self.give_helpful_hints([target_host])
+        self.give_helpful_hints([target_host], backup=True, playbook=playbook)
 
     def get_provider_hosts(self):
         return [
@@ -570,8 +557,19 @@ class BaseCloudNodeConfigurator:
         with open(self.config['stakeholder_config_file'], 'w') as outfile:
             json.dump(data, outfile, indent=4)
 
-    def give_helpful_hints(self, node_names):
-        self.emitter.echo("You may wish to ssh into your running hosts:")
+    def give_helpful_hints(self, node_names, backup=False, playbook=None):
+
+        self.emitter.echo("some relevant info:")
+        self.emitter.echo(f' config file: "{self.config_path}"')
+        self.emitter.echo(f" inventory file: {self.inventory_path}", color='yellow')
+        if self.config.get('keypair_path'):
+            self.emitter.echo(f" keypair file: {self.config['keypair_path']}", color='yellow')
+
+        if playbook:
+            self.emitter.echo(" If you like, you can run the same playbook directly in ansible with the following:")
+            self.emitter.echo(f'\tansible-playbook -i "{self.inventory_path}" "{playbook}"')
+
+        self.emitter.echo(" You may wish to ssh into your running hosts:")
         for node_name, host_data in [h for h in self.get_all_hosts() if h[0] in node_names]:
             dep = CloudDeployers.get_deployer(host_data['provider'])(
                 self.emitter,
@@ -581,7 +579,10 @@ class BaseCloudNodeConfigurator:
                 namespace=self.namespace,
                 network=self.network
             )
-            self.emitter.echo(f"\t {dep.format_ssh_cmd(host_data)}", color="yellow")
+            self.emitter.echo(f"\t{dep.format_ssh_cmd(host_data)}", color="yellow")
+        if backup:
+            self.emitter.echo(" *** Local backups containing sensitive data have been created. ***", color="red")
+            self.emitter.echo(f" Backup data can be found here: {self.config_dir}/remote_worker_backups/")
 
     def format_ssh_cmd(self, host_data):
         user = next(v['value'] for v in host_data['provider_deploy_attrs'] if v['key'] == 'default_user')
@@ -679,16 +680,19 @@ class DigitalOceanConfigurator(BaseCloudNodeConfigurator):
                     continue
                 self.emitter.echo(f"deleting worker instance for {node_name} in 3 seconds...", color='red')
                 time.sleep(3)
-                if requests.delete(
+
+                result = requests.delete(
                     f'https://api.digitalocean.com/v2/droplets/{instance["InstanceId"]}/',
                     headers = {
                         "Authorization": f'Bearer {self.token}'
-                }).status_code == 204:
+                })
+
+                if result.status_code == 204 or 'not_found' in result.text:
                     self.emitter.echo(f"\tdestroyed instance for {node_name}")
                     del self.config['instances'][node_name]
                     self._write_config()
                 else:
-                    raise
+                    raise Exception(f"Errors occurred while deleting node: {result.text}")
 
         return True
 
@@ -984,6 +988,7 @@ class AWSNodeConfigurator(BaseCloudNodeConfigurator):
     def format_ssh_cmd(self, host_data):
         keypair_path = next(v['value'] for v in host_data['provider_deploy_attrs'] if v['key'] == 'ansible_ssh_private_key_file')
         return f'{super().format_ssh_cmd(host_data)} -i "{keypair_path}"'
+
 
 class GenericConfigurator(BaseCloudNodeConfigurator):
 

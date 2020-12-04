@@ -191,8 +191,9 @@ def add_for_stake(general_config, staker_address, host_address, login_name, key_
 @click.option('--namespace', help="Namespace for these operations.  Used to address hosts and data locally and name hosts on cloud platforms.", type=click.STRING, default='local-stakeholders')
 @click.option('--network', help="The Nucypher network name these hosts will run on.", type=click.STRING, default='mainnet')
 @click.option('--gas-strategy', help="Which gas strategy?  (glacial, slow, medium, fast)", type=click.STRING)
+@click.option('--include-host', 'include_hosts', help="specify hosts to update", multiple=True, type=click.STRING)
 @group_general_config
-def deploy(general_config, remote_provider, nucypher_image, seed_network, sentry_dsn, wipe, prometheus, namespace, network, gas_strategy):
+def deploy(general_config, remote_provider, nucypher_image, seed_network, sentry_dsn, wipe, prometheus, namespace, network, gas_strategy, include_hosts):
     """Deploys NuCypher on managed hosts."""
 
     emitter = setup_emitter(general_config)
@@ -203,10 +204,12 @@ def deploy(general_config, remote_provider, nucypher_image, seed_network, sentry
 
     deployer = CloudDeployers.get_deployer('generic')(emitter, None, None, remote_provider, nucypher_image, seed_network, sentry_dsn, prometheus=prometheus, namespace=namespace, network=network, gas_strategy=gas_strategy)
 
-    emitter.echo(f"found deploying {nucypher_image} on the following existing hosts:")
-    for name, hostdata in deployer.config['instances'].items():
+    hostnames = deployer.config['instances'].keys()
+    if include_hosts:
+        hostnames = include_hosts
+    for name, hostdata in [(n, d) for n, d in deployer.config['instances'].items() if n in hostnames]:
         emitter.echo(f'\t{name}: {hostdata["publicaddress"]}', color="yellow")
-    deployer.deploy_nucypher_on_existing_nodes(deployer.config['instances'].keys(), wipe_nucypher=wipe)
+    deployer.deploy_nucypher_on_existing_nodes(hostnames, wipe_nucypher=wipe)
 
 
 @cloudworkers.command('update')
@@ -308,7 +311,6 @@ def backup(general_config, namespace, network, include_hosts):
     if include_hosts:
         hostnames = include_hosts
     deployer.backup_remote_data(hostnames)
-    emitter.echo("*** Local backups may contain sensitive data. Keep it safe. ***", color="red")
 
 
 @cloudworkers.command('destroy')
