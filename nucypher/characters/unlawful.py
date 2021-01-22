@@ -16,15 +16,15 @@ along with nucypher.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 from copy import copy
-import tempfile
-from unittest.mock import patch
 
+import tempfile
+from tests.constants import MOCK_PROVIDER_URI
 from eth_tester.exceptions import ValidationError
+from unittest.mock import patch
 
 from nucypher.characters.lawful import Alice, Ursula
 from nucypher.config.constants import TEMPORARY_DOMAIN
 from nucypher.crypto.api import encrypt_and_sign
-from nucypher.crypto.constants import HRAC_LENGTH
 from nucypher.crypto.powers import CryptoPower, SigningPower, DecryptingPower, TransactingPower
 from nucypher.exceptions import DevelopmentInstallationRequired
 from nucypher.policy.collections import SignedTreasureMap
@@ -77,6 +77,7 @@ class Vladimir(Ursula):
         db_filepath = tempfile.mkdtemp(prefix='Vladimir')
 
         vladimir = cls(is_me=True,
+                       provider_uri=MOCK_PROVIDER_URI,
                        crypto_power=crypto_power,
                        db_filepath=db_filepath,
                        domain=TEMPORARY_DOMAIN,
@@ -86,7 +87,6 @@ class Vladimir(Ursula):
                        network_middleware=cls.network_middleware,
                        checksum_address=cls.fraud_address,
                        worker_address=cls.fraud_address,
-                       provider_uri=MOCK_PROVIDER_URI,
                        ######### Asshole.
                        timestamp=target_ursula._timestamp,
                        interface_signature=target_ursula._interface_signature,
